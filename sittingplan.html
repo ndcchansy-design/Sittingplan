@@ -159,7 +159,7 @@
                     </div>
                 </div>
 
-                <!-- 【修改1】講台移至正下方 -->
+                <!-- 講台 -->
                 <div class="w-1/2 max-w-md mx-auto mt-4 h-12 bg-gray-200 rounded-lg border-2 border-gray-300 flex items-center justify-center font-bold text-gray-600 tracking-widest">
                     講 台
                 </div>
@@ -237,11 +237,29 @@
                         }
                     }
 
-                    // 【修改2】擷取學號並格式化為兩位數
-                    let rawNumber = data.number || data.studentNumber || data.seatNumber || data.no || '';
+                    // 【重點修改】已將 studentNum 加入最優先讀取的欄位中
+                    const possibleNumFields = [
+                        'studentNum', 'number', 'studentNumber', 'seatNumber', 'no', 'seatNo', 
+                        'classNo', 'studentNo', 'num', 'seat_no', 'student_no', 'class_no'
+                    ];
+                    
+                    let rawNumber = '';
+                    for (const fieldName of possibleNumFields) {
+                        if (data[fieldName] !== undefined && data[fieldName] !== null && String(data[fieldName]).trim() !== '') {
+                            rawNumber = data[fieldName];
+                            break;
+                        }
+                    }
+
                     let displayNum = '';
                     if (rawNumber !== '') {
-                        displayNum = String(rawNumber).padStart(2, '0');
+                        // 嘗試從字串中萃取數字並補齊兩位數 (例如 "5" -> "05")
+                        const numMatch = String(rawNumber).match(/\d+/);
+                        if (numMatch) {
+                            displayNum = numMatch[0].padStart(2, '0');
+                        } else {
+                            displayNum = String(rawNumber);
+                        }
                     }
 
                     fetchedStudents.push({
@@ -473,8 +491,8 @@
                         div.draggable = true;
                         div.ondragstart = (e) => handleDragStart(e, student.id, 'list');
                         
-                        // 【修改2】在側邊欄名單顯示學號
-                        const numText = student.number ? `<span class="text-gray-500 mr-1">(${student.number})</span>` : '';
+                        // 側邊欄名單顯示學號 (藍色粗體)
+                        const numText = student.number ? `<span class="text-blue-600 font-bold mr-1">(${student.number})</span>` : '';
                         
                         div.innerHTML = `
                             <img src="${student.photo}" onerror="this.src='${defaultAvatar}'" alt="${student.name}" class="w-8 h-8 rounded-full object-cover mr-3 border border-gray-200 bg-gray-100" />
@@ -520,8 +538,8 @@
                         innerDiv.draggable = true;
                         innerDiv.ondragstart = (e) => handleDragStart(e, student.id, seat.id);
                         
-                        // 【修改2】在座位表顯示學號
-                        const numText = student.number ? `<span class="text-gray-500 mr-1">(${student.number})</span>` : '';
+                        // 座位表顯示學號 (藍色粗體)
+                        const numText = student.number ? `<span class="text-blue-600 font-bold mr-1">(${student.number})</span>` : '';
 
                         innerDiv.innerHTML = `
                             <img src="${student.photo}" onerror="this.src='${defaultAvatar}'" alt="${student.name}" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover mb-2 border-2 border-white shadow-sm bg-white" />
