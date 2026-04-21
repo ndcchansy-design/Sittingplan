@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>班級座位表編輯器</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 列印專用的 CSS 設定 */
+        @media print {
+            @page { size: A4 landscape; margin: 15mm; }
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white; }
+            .print-hidden { display: none !important; }
+            .print-area { width: 100% !important; padding: 0 !important; margin: 0 !important; }
+            .seat-grid { gap: 0.5rem !important; }
+            .seat-box { border-color: #000 !important; }
+        }
+        
+        /* 隱藏捲軸但保留滾動功能 (美化側邊欄) */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800 min-h-screen flex flex-col">
+
+    <!-- 頂部導覽列 -->
+    <header class="bg-white shadow-sm px-6 py-4 flex justify-between items-center print-hidden">
+        <div class="flex items-center space-x-2">
+            <!-- Users Icon -->
+            <svg class="w-6 h-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <h1 class="text-xl font-bold text-gray-800">班級座位表編輯器</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+            <button onclick="window.print()" class="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors">
+                <!-- Printer Icon -->
+                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+                <span>匯出 PDF (A4 橫式)</span>
+            </button>
+            <button class="flex items-center space-x-2 text-gray-500 hover:text-gray-700">
+                <!-- LogOut Icon -->
+                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+                <span>登出</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="p-6 flex gap-6 flex-1 overflow-hidden">
+        <!-- 左側：未分配學生名單 (列印時隱藏) -->
+        <aside 
+            id="sidebar"
+            class="w-64 bg-white rounded-lg shadow-sm p-4 flex flex-col print-hidden"
+            ondragover="handleDragOver(event)"
+            ondrop="handleDropOnSidebar(event)"
+        >
+            <div class="flex items-center justify-between mb-4 pb-2 border-b">
+                <h2 class="font-semibold text-gray-700" id="unassigned-count">未分配學生 (0)</h2>
+            </div>
+            
+            <!-- 學生名單容器 -->
+            <div id="student-list" class="flex-1 overflow-y-auto space-y-2 no-scrollbar">
+                <!-- JavaScript 會在這裡生成學生卡片 -->
+            </div>
+
+            <!-- 垃圾桶區域：將座位上的學生拖到這裡以移除 -->
+            <div class="mt-4 p-4 border-2 border-dashed border-red-200 rounded-lg bg-red-50 text-red-400 flex flex-col items-center justify-center text-sm">
+                <!-- Trash2 Icon -->
+                <svg class="w-6 h-6 mb-1 opacity-50" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                <p>拖曳至此移除座位</p>
+            </div>
+        </aside>
+
+        <!-- 右側：座位表平面圖 (列印區域) -->
+        <section class="flex-1 bg-white rounded-lg shadow-sm p-8 print-area flex flex-col overflow-y-auto">
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-2">三年甲班 座位表</h2>
+                <!-- 講台示意 -->
+                <div class="w-1/2 max-w-md mx-auto h-12 bg-gray-200 rounded-t-lg border-2 border-gray-300 flex items-center justify-center font-bold text-gray-600 tracking-widest">
+                    講 台
+                </div>
+            </div>
+
+            <!-- 座位網格 (6行 x 5列) -->
+            <div class="flex-1 flex items-center justify-center">
+                <div id="seat-grid" class="grid grid-cols-6 gap-4 seat-grid w-full max-w-5xl">
+                    <!-- JavaScript 會在這裡生成座位 -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // 模擬學生資料
+        const students = [
+            { id: 's1', name: '王小明', photo: 'https://picsum.photos/seed/s1/150/150' },
+            { id: 's2', name: '陳大文', photo: 'https://picsum.photos/seed/s2/150/150' },
+            { id: 's3', name: '李美玲', photo: 'https://picsum.photos/seed/s3/150/150' },
+            { id: 's4', name: '張家豪', photo: 'https://picsum.photos/seed/s4/150/150' },
+            { id: 's5', name: '林雅婷', photo: 'https://picsum.photos/seed/s5/150/150' },
+            { id: 's6', name: '黃建宏', photo: 'https://picsum.photos/seed/s6/150/150' },
+            { id: 's7', name: '吳淑芬', photo: 'https://picsum.photos/seed/s7/150/150' },
+            { id: 's8', name: '劉冠宇', photo: 'https://picsum.photos/seed/s8/150/150' },
+        ];
+
+        // 初始化 30 個座位
+        let seats = Array.from({ length: 30 }, (_, i) => ({
+            id: `seat-${i}`,
+            studentId: null,
+        }));
+
+        // 拖曳狀態變數
+        let draggedStudentId = null;
+        let dragSource = null; // 'list' 或 'seat-x'
+
+        // DOM 元素
+        const studentListEl = document.getElementById('student-list');
+        const seatGridEl = document.getElementById('seat-grid');
+        const unassignedCountEl = document.getElementById('unassigned-count');
+
+        // 渲染畫面
+        function render() {
+            renderSidebar();
+            renderSeats();
+        }
+
+        // 渲染左側未分配名單
+        function renderSidebar() {
+            // 找出尚未安排座位的學生
+            const unassignedStudents = students.filter(
+                student => !seats.some(seat => seat.studentId === student.id)
+            );
+
+            unassignedCountEl.textContent = `未分配學生 (${unassignedStudents.length})`;
+            studentListEl.innerHTML = '';
+
+            if (unassignedStudents.length === 0) {
+                studentListEl.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">所有學生已安排座位</p>';
+                return;
+            }
+
+            unassignedStudents.forEach(student => {
+                const div = document.createElement('div');
+                div.className = "flex items-center p-2 bg-gray-50 border border-gray-200 rounded-md cursor-grab active:cursor-grabbing hover:bg-blue-50 hover:border-blue-300 transition-colors";
+                div.draggable = true;
+                div.ondragstart = (e) => handleDragStart(e, student.id, 'list');
+                
+                div.innerHTML = `
+                    <svg class="w-4 h-4 text-gray-400 mr-2" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+                    <img src="${student.photo}" alt="${student.name}" class="w-8 h-8 rounded-full object-cover mr-3 border border-gray-300" />
+                    <span class="font-medium text-sm">${student.name}</span>
+                `;
+                studentListEl.appendChild(div);
+            });
+        }
+
+        // 渲染右側座位表
+        function renderSeats() {
+            seatGridEl.innerHTML = '';
+
+            seats.forEach(seat => {
+                const student = students.find(s => s.id === seat.studentId);
+                const div = document.createElement('div');
+                
+                // 設定座位樣式
+                div.className = `seat-box relative aspect-square rounded-lg border-2 flex flex-col items-center justify-center p-2 transition-all ${
+                    student ? 'border-blue-400 bg-blue-50 shadow-sm' : 'border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100'
+                }`;
+                
+                // 設定放置事件
+                div.ondragover = handleDragOver;
+                div.ondrop = (e) => handleDropOnSeat(e, seat.id);
+
+                if (student) {
+                    // 如果座位有人，產生可拖曳的學生卡片
+                    const innerDiv = document.createElement('div');
+                    innerDiv.className = "w-full h-full flex flex-col items-center justify-center cursor-grab active:cursor-grabbing";
+                    innerDiv.draggable = true;
+                    innerDiv.ondragstart = (e) => handleDragStart(e, student.id, seat.id);
+                    
+                    innerDiv.innerHTML = `
+                        <img src="${student.photo}" alt="${student.name}" class="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover mb-2 border-2 border-white shadow-sm" />
+                        <span class="font-bold text-sm sm:text-base text-gray-800 whitespace-nowrap">${student.name}</span>
+                    `;
+                    div.appendChild(innerDiv);
+                } else {
+                    // 空座位
+                    div.innerHTML = '<span class="text-xs text-gray-400 print-hidden">空座位</span>';
+                }
+
+                seatGridEl.appendChild(div);
+            });
+        }
+
+        // 拖曳開始
+        function handleDragStart(e, studentId, source) {
+            draggedStudentId = studentId;
+            dragSource = source;
+            // 必須設定 dataTransfer 才能在某些瀏覽器(如 Firefox)中啟用拖放
+            e.dataTransfer.setData('text/plain', studentId);
+            e.dataTransfer.effectAllowed = 'move';
+        }
+
+        // 允許放置
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }
+
+        // 放置在座位上
+        function handleDropOnSeat(e, targetSeatId) {
+            e.preventDefault();
+            if (!draggedStudentId) return;
+
+            const targetSeatIndex = seats.findIndex(s => s.id === targetSeatId);
+            const targetSeat = seats[targetSeatIndex];
+
+            if (dragSource.startsWith('seat-')) {
+                // 從另一個座位拖過來 -> 交換座位
+                const sourceSeatIndex = seats.findIndex(s => s.id === dragSource);
+                const tempStudentId = targetSeat.studentId;
+                seats[targetSeatIndex].studentId = seats[sourceSeatIndex].studentId;
+                seats[sourceSeatIndex].studentId = tempStudentId;
+            } else if (dragSource === 'list') {
+                // 從側邊欄拖過來 -> 直接覆蓋目標座位 (原本的人會自動回到未分配名單)
+                seats[targetSeatIndex].studentId = draggedStudentId;
+            }
+
+            // 重置狀態並重新渲染
+            draggedStudentId = null;
+            dragSource = null;
+            render();
+        }
+
+        // 放置在側邊欄 (移除座位)
+        function handleDropOnSidebar(e) {
+            e.preventDefault();
+            
+            // 只有當來源是座位時，才需要移除
+            if (dragSource && dragSource.startsWith('seat-')) {
+                const sourceSeatIndex = seats.findIndex(s => s.id === dragSource);
+                if (sourceSeatIndex !== -1) {
+                    seats[sourceSeatIndex].studentId = null;
+                    render();
+                }
+            }
+            
+            draggedStudentId = null;
+            dragSource = null;
+        }
+
+        // 初始渲染
+        render();
+    </script>
+</body>
+</html>
