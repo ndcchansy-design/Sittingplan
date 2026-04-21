@@ -68,6 +68,11 @@
             background: #3b82f6;
             cursor: pointer;
         }
+        
+        /* 讓左側選單捲動更平滑 */
+        #student-list {
+            scroll-behavior: smooth;
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800 min-h-screen flex flex-col">
@@ -168,7 +173,6 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 預設頭像 (Base64)
         const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzljYTNhZiI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==';
 
         let students = [];
@@ -180,7 +184,6 @@
         };
         
         let seats = [];
-        // 【修改 1】一開始預設為空，不展開任何班級
         let expandedClasses = new Set(); 
         let draggedStudentId = null;
         let dragSource = null;
@@ -196,7 +199,6 @@
 
         const CLASS_DOC_REF = doc(db, "seating_plans", "custom_class_01");
 
-        // 從 Firebase 讀取真實的學生資料與相片
         async function loadStudentsFromFirebase() {
             try {
                 syncStatusEl.textContent = "載入學生資料中...";
@@ -205,7 +207,6 @@
                 
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
-                    
                     let photoUrl = defaultAvatar;
                     
                     const possiblePhotoFields = [
@@ -234,8 +235,6 @@
 
                 if (fetchedStudents.length > 0) {
                     students = fetchedStudents;
-                    // 【修改 2】移除自動展開所有班級的程式碼
-                    // students.forEach(s => expandedClasses.add(s.className)); 
                 } else {
                     console.warn("Firebase 中沒有找到學生資料，載入預設測試資料");
                     students = [
@@ -411,8 +410,17 @@
                 return;
             }
 
-            // 將班級名稱依照字母與數字自然排序 (例如 1A, 1B, 2A...)
+            // 【重點修改 1】修改排序邏輯：將已展開的班級強制排在最前面（置頂）
             const sortedClassNames = Object.keys(grouped).sort((a, b) => {
+                const isAExpanded = expandedClasses.has(a);
+                const isBExpanded = expandedClasses.has(b);
+                
+                // 如果 A 是展開的，B 不是，A 排前面
+                if (isAExpanded && !isBExpanded) return -1;
+                // 如果 B 是展開的，A 不是，B 排前面
+                if (!isAExpanded && isBExpanded) return 1;
+                
+                // 如果兩者狀態相同，則依照班級名稱自然排序 (1A, 2A...)
                 return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
             });
 
@@ -422,11 +430,26 @@
                 
                 const groupHeader = document.createElement('div');
                 groupHeader.className = "flex items-center justify-between bg-blue-50 px-3 py-2 rounded-md cursor-pointer hover:bg-blue-100 transition-colors mb-2";
+                
+                // 【重點修改 2】點擊班級時的行為：自動收合其他班級，並捲動到最上方
                 groupHeader.onclick = () => {
-                    if (expandedClasses.has(className)) expandedClasses.delete(className);
-                    else expandedClasses.add(className);
+                    const wasExpanded = expandedClasses.has(className);
+                    
+                    // 清空所有已展開的班級 (手風琴效果：一次只展開一個班級，節省空間)
+                    expandedClasses.clear();
+                    
+                    // 如果原本是未展開狀態，則將其展開
+                    if (!wasExpanded) {
+                        expandedClasses.add(className);
+                    }
+                    
+                    // 重新渲染側邊欄 (此時該班級會因為上面的排序邏輯被置頂)
                     renderSidebar();
+                    
+                    // 確保列表捲動到最上方，讓置頂的班級完全可見
+                    studentListEl.scrollTop = 0;
                 };
+
                 groupHeader.innerHTML = `
                     <span class="font-bold text-blue-800">${className} 班</span>
                     <span class="text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full">${classStudents.length} 人</span>
@@ -437,7 +460,6 @@
                     const listContainer = document.createElement('div');
                     listContainer.className = "space-y-2 mb-4 pl-2";
                     
-                    // 讓班級內的學生也依照名字簡單排序
                     classStudents.sort((a, b) => a.name.localeCompare(b.name, 'zh-TW'));
 
                     classStudents.forEach(student => {
@@ -554,7 +576,6 @@
             dragSource = null;
         }
 
-        // 一鍵清空座位功能
         window.clearAllSeats = function() {
             if (confirm("確定要清空所有座位嗎？\n這將會把所有學生移回左側「未分配名單」，方便您重新安排。")) {
                 seats.forEach(seat => {
@@ -568,7 +589,6 @@
         window.handleDragOver = handleDragOver;
         window.handleDropOnSidebar = handleDropOnSidebar;
 
-        // 列印自動縮放邏輯
         function applyPrintScale() {
             const grid = document.getElementById('seat-grid');
             grid.style.transform = 'none';
@@ -591,7 +611,6 @@
         window.addEventListener('beforeprint', applyPrintScale);
         window.addEventListener('afterprint', removePrintScale);
 
-        // 啟動程式
         loadData();
 
     </script>
