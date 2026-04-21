@@ -6,33 +6,42 @@
     <title>進階班級座位表編輯器 (單頁 A4 列印版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* --- 列印專屬樣式 --- */
+        /* --- 列印專屬樣式 (強制單頁) --- */
         @media print {
-            @page { size: A4 landscape; margin: 10mm; }
+            /* 將邊界設為 0，由內部的 padding 控制，避免瀏覽器預設邊界干擾 */
+            @page { size: A4 landscape; margin: 0; }
+            
             html, body { 
                 -webkit-print-color-adjust: exact; 
                 print-color-adjust: exact; 
-                background: white; 
+                background: white !important; 
                 margin: 0 !important;
                 padding: 0 !important;
-                width: 100% !important;
-                height: 100% !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                /* 強制隱藏卷軸，杜絕第二頁 */
                 overflow: hidden !important; 
             }
+            
             .print-hidden { display: none !important; }
+            
             main {
                 display: block !important;
-                width: 100% !important;
-                height: 100% !important;
-                overflow: hidden !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                margin: 0 !important;
+                padding: 0 !important;
             }
+            
             .print-area { 
-                position: absolute !important;
+                /* 使用 fixed 鎖死在第一頁，絕對不會長出第二頁 */
+                position: fixed !important;
                 top: 0 !important;
                 left: 0 !important;
-                width: 100% !important; 
-                height: 100% !important; 
-                padding: 0 !important; 
+                width: 100vw !important; 
+                height: 100vh !important; 
+                padding: 10mm !important; /* 自訂 10mm 安全邊距 */
+                box-sizing: border-box !important;
                 margin: 0 !important; 
                 box-shadow: none !important; 
                 border: none !important;
@@ -40,16 +49,18 @@
                 display: flex !important;
                 flex-direction: column !important;
                 align-items: center !important;
+                justify-content: flex-start !important;
             }
-            .overflow-x-auto, .overflow-y-auto {
-                overflow: visible !important;
+
+            /* 確保縮放容器在列印時不會被限制寬度 */
+            #print-wrapper {
+                width: max-content !important;
+                max-width: none !important;
             }
+
             #chart-title {
                 border: none !important;
                 background: transparent !important;
-            }
-            #seat-grid {
-                padding-bottom: 0 !important;
             }
         }
 
@@ -69,7 +80,6 @@
             cursor: pointer;
         }
         
-        /* 讓左側選單捲動更平滑 */
         #student-list {
             scroll-behavior: smooth;
         }
@@ -85,7 +95,6 @@
             <span id="sync-status" class="ml-4 text-sm text-gray-400">連線中...</span>
         </div>
         <div class="flex items-center space-x-4">
-            <!-- 一鍵清空座位按鈕 -->
             <button onclick="window.clearAllSeats()" class="flex items-center space-x-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md transition-colors">
                 <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
                 <span>清空座位</span>
@@ -140,19 +149,24 @@
 
         <!-- 右側：座位表平面圖 -->
         <section class="flex-1 bg-white rounded-lg shadow-sm p-8 print-area flex flex-col overflow-y-auto relative w-full">
-            <div class="text-center mb-8 flex flex-col items-center w-full">
-                <input type="text" id="chart-title" value="自訂座位表" class="text-3xl font-bold text-gray-800 mb-4 text-center border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 outline-none bg-transparent transition-colors w-full max-w-lg">
-                
-                <div class="w-1/2 max-w-md mx-auto h-12 bg-gray-200 rounded-t-lg border-2 border-gray-300 flex items-center justify-center font-bold text-gray-600 tracking-widest">
-                    講 台
+            
+            <!-- 【重點修改】加入 print-wrapper 將標題、講台、座位包在一起縮放 -->
+            <div id="print-wrapper" class="flex flex-col items-center w-full origin-top transition-transform duration-300">
+                <div class="text-center mb-8 flex flex-col items-center w-full">
+                    <input type="text" id="chart-title" value="自訂座位表" class="text-3xl font-bold text-gray-800 mb-4 text-center border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 outline-none bg-transparent transition-colors w-full max-w-lg">
+                    
+                    <div class="w-1/2 max-w-md mx-auto h-12 bg-gray-200 rounded-t-lg border-2 border-gray-300 flex items-center justify-center font-bold text-gray-600 tracking-widest">
+                        講 台
+                    </div>
+                </div>
+
+                <div class="flex-1 flex items-start justify-center w-full">
+                    <div id="seat-grid" class="flex flex-col items-center w-max pb-8" style="row-gap: 1rem;">
+                        <!-- JavaScript 動態生成 -->
+                    </div>
                 </div>
             </div>
 
-            <div class="flex-1 flex items-start justify-center overflow-x-auto w-full">
-                <div id="seat-grid" class="flex flex-col items-center w-max pb-8" style="row-gap: 1rem;">
-                    <!-- JavaScript 動態生成 -->
-                </div>
-            </div>
         </section>
     </main>
 
@@ -410,17 +424,11 @@
                 return;
             }
 
-            // 【重點修改 1】修改排序邏輯：將已展開的班級強制排在最前面（置頂）
             const sortedClassNames = Object.keys(grouped).sort((a, b) => {
                 const isAExpanded = expandedClasses.has(a);
                 const isBExpanded = expandedClasses.has(b);
-                
-                // 如果 A 是展開的，B 不是，A 排前面
                 if (isAExpanded && !isBExpanded) return -1;
-                // 如果 B 是展開的，A 不是，B 排前面
                 if (!isAExpanded && isBExpanded) return 1;
-                
-                // 如果兩者狀態相同，則依照班級名稱自然排序 (1A, 2A...)
                 return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
             });
 
@@ -431,22 +439,13 @@
                 const groupHeader = document.createElement('div');
                 groupHeader.className = "flex items-center justify-between bg-blue-50 px-3 py-2 rounded-md cursor-pointer hover:bg-blue-100 transition-colors mb-2";
                 
-                // 【重點修改 2】點擊班級時的行為：自動收合其他班級，並捲動到最上方
                 groupHeader.onclick = () => {
                     const wasExpanded = expandedClasses.has(className);
-                    
-                    // 清空所有已展開的班級 (手風琴效果：一次只展開一個班級，節省空間)
                     expandedClasses.clear();
-                    
-                    // 如果原本是未展開狀態，則將其展開
                     if (!wasExpanded) {
                         expandedClasses.add(className);
                     }
-                    
-                    // 重新渲染側邊欄 (此時該班級會因為上面的排序邏輯被置頂)
                     renderSidebar();
-                    
-                    // 確保列表捲動到最上方，讓置頂的班級完全可見
                     studentListEl.scrollTop = 0;
                 };
 
@@ -589,23 +588,35 @@
         window.handleDragOver = handleDragOver;
         window.handleDropOnSidebar = handleDropOnSidebar;
 
+        // 【重點修改】強化列印縮放邏輯，確保整體內容縮放至單頁
         function applyPrintScale() {
-            const grid = document.getElementById('seat-grid');
-            grid.style.transform = 'none';
-            void grid.offsetWidth;
-            const rect = grid.getBoundingClientRect();
-            const availableWidth = 1040; 
-            const availableHeight = 580; 
-            const scale = Math.min(availableWidth / rect.width, availableHeight / rect.height, 1);
+            const wrapper = document.getElementById('print-wrapper');
+            
+            // 先重置縮放，以取得真實大小
+            wrapper.style.transform = 'none';
+            void wrapper.offsetWidth; // 強制瀏覽器重新計算佈局
+            
+            const rect = wrapper.getBoundingClientRect();
+            
+            // 設定 A4 橫向的安全可用區域 (扣除邊距後大約的像素值)
+            // A4 橫向在 96 DPI 下約為 1122 x 793。我們設定 1050 x 720 作為安全邊界
+            const availableWidth = 1050; 
+            const availableHeight = 720; 
+            
+            // 計算長寬所需的縮放比例，取最小的那個，確保不會超出邊界
+            const scaleX = availableWidth / rect.width;
+            const scaleY = availableHeight / rect.height;
+            const scale = Math.min(scaleX, scaleY, 1); // 如果本來就很小就不放大 (上限為 1)
+            
             if (scale < 1) {
-                grid.style.transform = `scale(${scale})`;
-                grid.style.transformOrigin = 'top center';
+                // 將整個標題、講台、座位表一起縮放
+                wrapper.style.transform = `scale(${scale})`;
             }
         }
 
         function removePrintScale() {
-            const grid = document.getElementById('seat-grid');
-            grid.style.transform = 'none';
+            const wrapper = document.getElementById('print-wrapper');
+            wrapper.style.transform = 'none';
         }
 
         window.addEventListener('beforeprint', applyPrintScale);
