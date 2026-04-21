@@ -200,17 +200,23 @@
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
                     
-                    // 【強化】嘗試從多種常見的欄位名稱中抓取相片網址
                     let photoUrl = defaultAvatar;
+                    
+                    // 【重點更新】將 photoBase64 放在最優先順位
                     const possiblePhotoFields = [
-                        data.photo, data.photoUrl, data.imageUrl, 
-                        data.image, data.avatar, data.picture, data.img
+                        data.photoBase64, data.photo, data.photoUrl, 
+                        data.imageUrl, data.image, data.avatar, data.picture
                     ];
                     
                     for (const field of possiblePhotoFields) {
                         if (field && typeof field === 'string' && field.trim() !== '') {
-                            photoUrl = field;
-                            break; // 找到第一個有效的網址就停止尋找
+                            // 防呆機制：如果存入的 Base64 字串缺少 data:image 前綴，自動幫它補上
+                            if (!field.startsWith('http') && !field.startsWith('data:') && field.length > 100) {
+                                photoUrl = 'data:image/png;base64,' + field;
+                            } else {
+                                photoUrl = field;
+                            }
+                            break; // 找到有效的相片資料就停止尋找
                         }
                     }
 
@@ -427,7 +433,6 @@
                         div.draggable = true;
                         div.ondragstart = (e) => handleDragStart(e, student.id, 'list');
                         
-                        // 【強化】加入 onerror 防呆，若圖片網址失效自動切換為預設頭像
                         div.innerHTML = `
                             <img src="${student.photo}" onerror="this.src='${defaultAvatar}'" alt="${student.name}" class="w-8 h-8 rounded-full object-cover mr-3 border border-gray-200 bg-gray-100" />
                             <span class="font-medium text-sm text-gray-700">${student.name}</span>
@@ -472,7 +477,6 @@
                         innerDiv.draggable = true;
                         innerDiv.ondragstart = (e) => handleDragStart(e, student.id, seat.id);
                         
-                        // 【強化】加入 onerror 防呆
                         innerDiv.innerHTML = `
                             <img src="${student.photo}" onerror="this.src='${defaultAvatar}'" alt="${student.name}" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover mb-2 border-2 border-white shadow-sm bg-white" />
                             <span class="font-bold text-sm sm:text-base text-gray-800 whitespace-nowrap">${student.name}</span>
