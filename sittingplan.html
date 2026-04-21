@@ -80,7 +80,7 @@
             <span id="sync-status" class="ml-4 text-sm text-gray-400">連線中...</span>
         </div>
         <div class="flex items-center space-x-4">
-            <!-- 新增：一鍵清空座位按鈕 -->
+            <!-- 一鍵清空座位按鈕 -->
             <button onclick="window.clearAllSeats()" class="flex items-center space-x-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md transition-colors">
                 <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
                 <span>清空座位</span>
@@ -180,7 +180,8 @@
         };
         
         let seats = [];
-        let expandedClasses = new Set(['1A', '3A', '3B', '3C']); // 預設展開 1A 班
+        // 【修改 1】一開始預設為空，不展開任何班級
+        let expandedClasses = new Set(); 
         let draggedStudentId = null;
         let dragSource = null;
 
@@ -233,7 +234,8 @@
 
                 if (fetchedStudents.length > 0) {
                     students = fetchedStudents;
-                    students.forEach(s => expandedClasses.add(s.className));
+                    // 【修改 2】移除自動展開所有班級的程式碼
+                    // students.forEach(s => expandedClasses.add(s.className)); 
                 } else {
                     console.warn("Firebase 中沒有找到學生資料，載入預設測試資料");
                     students = [
@@ -409,7 +411,7 @@
                 return;
             }
 
-            // 【重點更新 1】將班級名稱依照字母與數字自然排序 (例如 1A, 1B, 2A...)
+            // 將班級名稱依照字母與數字自然排序 (例如 1A, 1B, 2A...)
             const sortedClassNames = Object.keys(grouped).sort((a, b) => {
                 return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
             });
@@ -435,7 +437,7 @@
                     const listContainer = document.createElement('div');
                     listContainer.className = "space-y-2 mb-4 pl-2";
                     
-                    // 額外優化：讓班級內的學生也依照名字簡單排序
+                    // 讓班級內的學生也依照名字簡單排序
                     classStudents.sort((a, b) => a.name.localeCompare(b.name, 'zh-TW'));
 
                     classStudents.forEach(student => {
@@ -552,7 +554,7 @@
             dragSource = null;
         }
 
-        // 【重點更新 2】一鍵清空座位功能
+        // 一鍵清空座位功能
         window.clearAllSeats = function() {
             if (confirm("確定要清空所有座位嗎？\n這將會把所有學生移回左側「未分配名單」，方便您重新安排。")) {
                 seats.forEach(seat => {
