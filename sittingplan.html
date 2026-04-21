@@ -425,7 +425,8 @@
                     const student = students.find(s => s.id === seat.studentId);
                     const div = document.createElement('div');
                     
-                    div.className = `seat-box relative w-20 h-20 sm:w-24 sm:h-24 rounded-lg border-2 flex flex-col items-center justify-center p-1 transition-all ${
+                    // 加大座位框的尺寸 (原本 w-20 h-20，改為 w-24 h-28 / sm:w-28 sm:h-32)
+                    div.className = `seat-box relative w-24 h-28 sm:w-28 sm:h-32 rounded-lg border-2 flex flex-col items-center justify-center p-2 transition-all ${
                         student ? 'border-blue-400 bg-blue-50 shadow-sm' : 'border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100'
                     }`;
                     
@@ -443,10 +444,11 @@
                         innerDiv.draggable = true;
                         innerDiv.ondragstart = (e) => handleDragStart(e, student.id, seat.id);
                         
+                        // 放大相片尺寸 (原本 w-10 h-10，改為 w-16 h-16 / sm:w-20 sm:h-20)
+                        // 移除班級名稱的 span
                         innerDiv.innerHTML = `
-                            <img src="${student.photo}" alt="${student.name}" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover mb-1 border-2 border-white shadow-sm" />
-                            <span class="font-bold text-xs sm:text-sm text-gray-800 whitespace-nowrap">${student.name}</span>
-                            <span class="text-[10px] text-gray-500">${student.className}</span>
+                            <img src="${student.photo}" alt="${student.name}" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover mb-2 border-2 border-white shadow-sm" />
+                            <span class="font-bold text-sm sm:text-base text-gray-800 whitespace-nowrap">${student.name}</span>
                         `;
                         div.appendChild(innerDiv);
                     } else {
