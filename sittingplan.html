@@ -8,10 +8,7 @@
     <style>
         /* --- 列印專屬樣式 --- */
         @media print {
-            /* 設定 A4 橫式與邊距 */
             @page { size: A4 landscape; margin: 10mm; }
-            
-            /* 強制隱藏卷軸與多餘頁面 */
             html, body { 
                 -webkit-print-color-adjust: exact; 
                 print-color-adjust: exact; 
@@ -22,17 +19,13 @@
                 height: 100% !important;
                 overflow: hidden !important; 
             }
-            
             .print-hidden { display: none !important; }
-            
             main {
                 display: block !important;
                 width: 100% !important;
                 height: 100% !important;
                 overflow: hidden !important;
             }
-
-            /* 讓列印區塊絕對定位，完美填滿一頁 A4 */
             .print-area { 
                 position: absolute !important;
                 top: 0 !important;
@@ -48,18 +41,13 @@
                 flex-direction: column !important;
                 align-items: center !important;
             }
-
-            /* 避免列印時瀏覽器強制裁切 */
             .overflow-x-auto, .overflow-y-auto {
                 overflow: visible !important;
             }
-
-            /* 隱藏輸入框底線 */
             #chart-title {
                 border: none !important;
                 background: transparent !important;
             }
-            
             #seat-grid {
                 padding-bottom: 0 !important;
             }
@@ -68,11 +56,9 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* 隱藏數字輸入框的上下箭頭 */
         input[type=number]::-webkit-inner-spin-button, 
         input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         
-        /* 自訂滑桿樣式 */
         input[type=range]::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
@@ -101,7 +87,7 @@
         </div>
     </header>
 
-    <!-- 控制面板 (設定行列與間距) -->
+    <!-- 控制面板 -->
     <div class="bg-white border-b px-6 py-4 flex flex-col gap-4 print-hidden shadow-sm z-0 relative">
         <div class="flex flex-wrap gap-6 items-center">
             <div class="flex items-center gap-2">
@@ -152,7 +138,6 @@
                 </div>
             </div>
 
-            <!-- 座位網格 (外層容器負責置中) -->
             <div class="flex-1 flex items-start justify-center overflow-x-auto w-full">
                 <div id="seat-grid" class="flex flex-col items-center w-max pb-8" style="row-gap: 1rem;">
                     <!-- JavaScript 動態生成 -->
@@ -164,7 +149,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-analytics.js";
-        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        // 新增載入 collection 和 getDocs 用來讀取學生清單
+        import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyB9jnyP4N-BSDDrSxaKgzL_t0U3ui4HvnE",
@@ -179,16 +165,8 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        const students = [
-            { id: 's1', name: '王小明', className: '3A', photo: 'https://picsum.photos/seed/s1/150/150' },
-            { id: 's2', name: '陳大文', className: '3A', photo: 'https://picsum.photos/seed/s2/150/150' },
-            { id: 's3', name: '李美玲', className: '3A', photo: 'https://picsum.photos/seed/s3/150/150' },
-            { id: 's4', name: '張家豪', className: '3B', photo: 'https://picsum.photos/seed/s4/150/150' },
-            { id: 's5', name: '林雅婷', className: '3B', photo: 'https://picsum.photos/seed/s5/150/150' },
-            { id: 's6', name: '黃建宏', className: '3C', photo: 'https://picsum.photos/seed/s6/150/150' },
-            { id: 's7', name: '吳淑芬', className: '3C', photo: 'https://picsum.photos/seed/s7/150/150' },
-            { id: 's8', name: '劉冠宇', className: '3C', photo: 'https://picsum.photos/seed/s8/150/150' },
-        ];
+        // 將原本寫死的學生資料改為空陣列，等待從 Firebase 載入
+        let students = [];
 
         let config = {
             title: "三年級 跨班選修 座位表",
@@ -213,6 +191,45 @@
 
         const CLASS_DOC_REF = doc(db, "seating_plans", "custom_class_01");
 
+        // 從 Firebase 讀取真實的學生資料與相片
+        async function loadStudentsFromFirebase() {
+            try {
+                syncStatusEl.textContent = "載入學生資料中...";
+                // 假設您的學生資料存在 "students" 這個集合中
+                // 如果您的集合名稱不同 (例如 student_profiles)，請修改下方 "students" 字眼
+                const querySnapshot = await getDocs(collection(db, "students"));
+                const fetchedStudents = [];
+                
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    fetchedStudents.push({
+                        id: doc.id,
+                        name: data.name || '未知',
+                        className: data.className || data.class || '未分班',
+                        // 確保讀取到 photo 或 photoUrl 欄位
+                        photo: data.photo || data.photoUrl || 'https://via.placeholder.com/150' 
+                    });
+                });
+
+                if (fetchedStudents.length > 0) {
+                    students = fetchedStudents;
+                    // 自動展開所有抓取到的班級
+                    expandedClasses = new Set(students.map(s => s.className));
+                } else {
+                    // 如果資料庫沒有資料，給予預設假資料方便測試
+                    console.warn("Firebase 中沒有找到學生資料，載入預設測試資料");
+                    students = [
+                        { id: 's1', name: '王小明', className: '3A', photo: 'https://picsum.photos/seed/s1/150/150' },
+                        { id: 's2', name: '陳大文', className: '3A', photo: 'https://picsum.photos/seed/s2/150/150' },
+                        { id: 's3', name: '李美玲', className: '3A', photo: 'https://picsum.photos/seed/s3/150/150' },
+                    ];
+                }
+            } catch (error) {
+                console.error("讀取學生資料失敗:", error);
+                syncStatusEl.textContent = "學生資料讀取失敗";
+            }
+        }
+
         function initSeatsArray() {
             const totalSeats = config.rows * config.cols;
             const newSeats = [];
@@ -223,6 +240,10 @@
         }
 
         async function loadData() {
+            // 1. 先載入學生名單與相片
+            await loadStudentsFromFirebase();
+
+            // 2. 再載入座位表設定
             try {
                 const docSnap = await getDoc(CLASS_DOC_REF);
                 if (docSnap.exists()) {
@@ -369,7 +390,7 @@
             });
 
             if (Object.keys(grouped).length === 0) {
-                studentListEl.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">所有學生已安排座位</p>';
+                studentListEl.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">所有學生已安排座位 / 無學生資料</p>';
                 return;
             }
 
@@ -425,7 +446,6 @@
                     const student = students.find(s => s.id === seat.studentId);
                     const div = document.createElement('div');
                     
-                    // 加大座位框的尺寸 (原本 w-20 h-20，改為 w-24 h-28 / sm:w-28 sm:h-32)
                     div.className = `seat-box relative w-24 h-28 sm:w-28 sm:h-32 rounded-lg border-2 flex flex-col items-center justify-center p-2 transition-all ${
                         student ? 'border-blue-400 bg-blue-50 shadow-sm' : 'border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100'
                     }`;
@@ -444,8 +464,6 @@
                         innerDiv.draggable = true;
                         innerDiv.ondragstart = (e) => handleDragStart(e, student.id, seat.id);
                         
-                        // 放大相片尺寸 (原本 w-10 h-10，改為 w-16 h-16 / sm:w-20 sm:h-20)
-                        // 移除班級名稱的 span
                         innerDiv.innerHTML = `
                             <img src="${student.photo}" alt="${student.name}" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover mb-2 border-2 border-white shadow-sm" />
                             <span class="font-bold text-sm sm:text-base text-gray-800 whitespace-nowrap">${student.name}</span>
@@ -513,29 +531,17 @@
         window.handleDragOver = handleDragOver;
         window.handleDropOnSidebar = handleDropOnSidebar;
 
-        // ==========================================
-        // 列印自動縮放邏輯 (確保一頁 A4 橫式印完)
-        // ==========================================
+        // 列印自動縮放邏輯
         function applyPrintScale() {
             const grid = document.getElementById('seat-grid');
             grid.style.transform = 'none';
-            
-            // 強制重繪以取得真實尺寸
             void grid.offsetWidth;
-            
             const rect = grid.getBoundingClientRect();
-            
-            // A4 橫式可用寬高 (扣除邊距與上方標題/講台空間)
-            // 寬度約 1040px，高度約 580px
             const availableWidth = 1040; 
             const availableHeight = 580; 
-            
-            // 計算縮放比例 (只縮小不放大，最大為 1)
             const scale = Math.min(availableWidth / rect.width, availableHeight / rect.height, 1);
-            
             if (scale < 1) {
                 grid.style.transform = `scale(${scale})`;
-                // 確保縮放時以頂部置中為基準，不會偏離講台
                 grid.style.transformOrigin = 'top center';
             }
         }
@@ -545,10 +551,10 @@
             grid.style.transform = 'none';
         }
 
-        // 監聽列印事件 (支援點擊按鈕或 Ctrl+P)
         window.addEventListener('beforeprint', applyPrintScale);
         window.addEventListener('afterprint', removePrintScale);
 
+        // 啟動程式
         loadData();
 
     </script>
