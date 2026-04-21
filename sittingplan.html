@@ -8,7 +8,6 @@
     <style>
         /* --- 列印專屬樣式 (強制單頁) --- */
         @media print {
-            /* 將邊界設為 0，由內部的 padding 控制，避免瀏覽器預設邊界干擾 */
             @page { size: A4 landscape; margin: 0; }
             
             html, body { 
@@ -19,7 +18,6 @@
                 padding: 0 !important;
                 width: 100vw !important;
                 height: 100vh !important;
-                /* 強制隱藏卷軸，杜絕第二頁 */
                 overflow: hidden !important; 
             }
             
@@ -34,13 +32,12 @@
             }
             
             .print-area { 
-                /* 使用 fixed 鎖死在第一頁，絕對不會長出第二頁 */
                 position: fixed !important;
                 top: 0 !important;
                 left: 0 !important;
                 width: 100vw !important; 
                 height: 100vh !important; 
-                padding: 10mm !important; /* 自訂 10mm 安全邊距 */
+                padding: 10mm !important; 
                 box-sizing: border-box !important;
                 margin: 0 !important; 
                 box-shadow: none !important; 
@@ -52,7 +49,6 @@
                 justify-content: flex-start !important;
             }
 
-            /* 確保縮放容器在列印時不會被限制寬度 */
             #print-wrapper {
                 width: max-content !important;
                 max-width: none !important;
@@ -150,20 +146,22 @@
         <!-- 右側：座位表平面圖 -->
         <section class="flex-1 bg-white rounded-lg shadow-sm p-8 print-area flex flex-col overflow-y-auto relative w-full">
             
-            <!-- 【重點修改】加入 print-wrapper 將標題、講台、座位包在一起縮放 -->
             <div id="print-wrapper" class="flex flex-col items-center w-full origin-top transition-transform duration-300">
+                <!-- 標題 -->
                 <div class="text-center mb-8 flex flex-col items-center w-full">
                     <input type="text" id="chart-title" value="自訂座位表" class="text-3xl font-bold text-gray-800 mb-4 text-center border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 outline-none bg-transparent transition-colors w-full max-w-lg">
-                    
-                    <div class="w-1/2 max-w-md mx-auto h-12 bg-gray-200 rounded-t-lg border-2 border-gray-300 flex items-center justify-center font-bold text-gray-600 tracking-widest">
-                        講 台
-                    </div>
                 </div>
 
+                <!-- 座位表 -->
                 <div class="flex-1 flex items-start justify-center w-full">
                     <div id="seat-grid" class="flex flex-col items-center w-max pb-8" style="row-gap: 1rem;">
                         <!-- JavaScript 動態生成 -->
                     </div>
+                </div>
+
+                <!-- 【修改1】講台移至正下方 -->
+                <div class="w-1/2 max-w-md mx-auto mt-4 h-12 bg-gray-200 rounded-lg border-2 border-gray-300 flex items-center justify-center font-bold text-gray-600 tracking-widest">
+                    講 台
                 </div>
             </div>
 
@@ -239,9 +237,17 @@
                         }
                     }
 
+                    // 【修改2】擷取學號並格式化為兩位數
+                    let rawNumber = data.number || data.studentNumber || data.seatNumber || data.no || '';
+                    let displayNum = '';
+                    if (rawNumber !== '') {
+                        displayNum = String(rawNumber).padStart(2, '0');
+                    }
+
                     fetchedStudents.push({
                         id: doc.id,
                         name: data.name || '未知',
+                        number: displayNum,
                         className: data.className || data.class || '未分班',
                         photo: photoUrl
                     });
@@ -252,8 +258,8 @@
                 } else {
                     console.warn("Firebase 中沒有找到學生資料，載入預設測試資料");
                     students = [
-                        { id: 's1', name: '王小明', className: '1A', photo: defaultAvatar },
-                        { id: 's2', name: '陳大文', className: '1A', photo: defaultAvatar },
+                        { id: 's1', name: '王小明', number: '01', className: '1A', photo: defaultAvatar },
+                        { id: 's2', name: '陳大文', number: '02', className: '1A', photo: defaultAvatar },
                     ];
                 }
             } catch (error) {
@@ -467,9 +473,12 @@
                         div.draggable = true;
                         div.ondragstart = (e) => handleDragStart(e, student.id, 'list');
                         
+                        // 【修改2】在側邊欄名單顯示學號
+                        const numText = student.number ? `<span class="text-gray-500 mr-1">(${student.number})</span>` : '';
+                        
                         div.innerHTML = `
                             <img src="${student.photo}" onerror="this.src='${defaultAvatar}'" alt="${student.name}" class="w-8 h-8 rounded-full object-cover mr-3 border border-gray-200 bg-gray-100" />
-                            <span class="font-medium text-sm text-gray-700">${student.name}</span>
+                            <span class="font-medium text-sm text-gray-700">${numText}${student.name}</span>
                         `;
                         listContainer.appendChild(div);
                     });
@@ -511,9 +520,12 @@
                         innerDiv.draggable = true;
                         innerDiv.ondragstart = (e) => handleDragStart(e, student.id, seat.id);
                         
+                        // 【修改2】在座位表顯示學號
+                        const numText = student.number ? `<span class="text-gray-500 mr-1">(${student.number})</span>` : '';
+
                         innerDiv.innerHTML = `
                             <img src="${student.photo}" onerror="this.src='${defaultAvatar}'" alt="${student.name}" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover mb-2 border-2 border-white shadow-sm bg-white" />
-                            <span class="font-bold text-sm sm:text-base text-gray-800 whitespace-nowrap">${student.name}</span>
+                            <span class="font-bold text-sm sm:text-base text-gray-800 whitespace-nowrap">${numText}${student.name}</span>
                         `;
                         div.appendChild(innerDiv);
                     } else {
@@ -588,28 +600,22 @@
         window.handleDragOver = handleDragOver;
         window.handleDropOnSidebar = handleDropOnSidebar;
 
-        // 【重點修改】強化列印縮放邏輯，確保整體內容縮放至單頁
         function applyPrintScale() {
             const wrapper = document.getElementById('print-wrapper');
             
-            // 先重置縮放，以取得真實大小
             wrapper.style.transform = 'none';
-            void wrapper.offsetWidth; // 強制瀏覽器重新計算佈局
+            void wrapper.offsetWidth; 
             
             const rect = wrapper.getBoundingClientRect();
             
-            // 設定 A4 橫向的安全可用區域 (扣除邊距後大約的像素值)
-            // A4 橫向在 96 DPI 下約為 1122 x 793。我們設定 1050 x 720 作為安全邊界
             const availableWidth = 1050; 
             const availableHeight = 720; 
             
-            // 計算長寬所需的縮放比例，取最小的那個，確保不會超出邊界
             const scaleX = availableWidth / rect.width;
             const scaleY = availableHeight / rect.height;
-            const scale = Math.min(scaleX, scaleY, 1); // 如果本來就很小就不放大 (上限為 1)
+            const scale = Math.min(scaleX, scaleY, 1); 
             
             if (scale < 1) {
-                // 將整個標題、講台、座位表一起縮放
                 wrapper.style.transform = `scale(${scale})`;
             }
         }
