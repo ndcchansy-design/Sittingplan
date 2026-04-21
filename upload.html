@@ -3,197 +3,441 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>上傳學生相片 (寫入 Firestore)</title>
-    <!-- 引入 Tailwind CSS -->
+    <title>學生座位表 - 相片批次上傳與管理系統</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 自訂捲軸樣式 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
 </head>
-<body class="bg-gray-50 font-sans min-h-screen flex items-center justify-center p-6">
+<body class="bg-gray-100 font-sans min-h-screen">
 
-    <div class="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">上傳學生相片 (Base64)</h2>
-
-        <!-- 圖片預覽區 -->
-        <div class="flex flex-col items-center justify-center mb-6">
-            <div class="w-32 h-32 rounded-full border-4 border-gray-100 shadow-inner overflow-hidden bg-gray-50 flex items-center justify-center mb-4 relative">
-                <!-- 預設圖示 (SVG) -->
-                <svg id="placeholder-icon" class="w-12 h-12 text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <!-- 預覽圖片 -->
-                <img id="preview-img" src="" alt="預覽" class="w-full h-full object-cover hidden absolute inset-0" />
+    <!-- 頂部導覽列 -->
+    <nav class="bg-blue-600 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <svg class="w-8 h-8 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <span class="font-bold text-xl">學生相片管理系統</span>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="tab-upload" class="px-3 py-2 rounded-md text-sm font-medium bg-blue-700 hover:bg-blue-800 transition">批次上傳</button>
+                    <button id="tab-manage" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition">瀏覽與管理</button>
+                </div>
             </div>
-            
-            <input type="file" id="file-input" accept="image/*" class="hidden" />
-            
-            <button id="select-btn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md font-medium transition-colors text-sm">
-                選擇相片
-            </button>
+        </div>
+    </nav>
+
+    <!-- 主要內容區 -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- 區塊 1：批次上傳區 -->
+        <div id="section-upload" class="bg-white rounded-xl shadow-lg p-6">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">批次上傳學生相片</h2>
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 text-sm text-blue-800">
+                <p class="font-bold mb-1">💡 檔名命名規則：</p>
+                <p>請將相片命名為 <strong>[班級2碼][學號2碼][姓名]</strong> (例如：<code class="bg-white px-1 rounded">1A01陳曉.jpg</code> 或 <code class="bg-white px-1 rounded">2B15歐陽大文.png</code>)。系統會自動擷取前兩碼為班級、接著兩碼為學號，其餘為姓名。</p>
+            </div>
+
+            <div class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-10 bg-gray-50 hover:bg-gray-100 transition relative">
+                <input type="file" id="file-input" multiple accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                <svg class="w-12 h-12 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                <p class="text-gray-600 font-medium">點擊此處選擇多張相片，或將相片拖曳至此</p>
+                <p class="text-xs text-gray-400 mt-2">支援 JPG, PNG (會自動壓縮為 150x150)</p>
+            </div>
+
+            <!-- 預覽列表 -->
+            <div id="preview-section" class="mt-8 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-gray-700">準備上傳清單 (<span id="preview-count">0</span>)</h3>
+                    <button id="start-upload-btn" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow transition">
+                        開始寫入 Firestore
+                    </button>
+                </div>
+                
+                <!-- 進度條 -->
+                <div id="upload-progress-container" class="w-full bg-gray-200 rounded-full h-4 mb-4 hidden">
+                    <div id="upload-progress-bar" class="bg-green-600 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <p id="upload-status" class="text-sm text-gray-600 mb-4 hidden">上傳中...</p>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">相片預覽</th>
+                                <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">班級</th>
+                                <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">學號</th>
+                                <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">姓名</th>
+                                <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">狀態</th>
+                            </tr>
+                        </thead>
+                        <tbody id="preview-tbody" class="divide-y divide-gray-200">
+                            <!-- 預覽項目會由 JS 動態生成 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
 
-        <!-- 狀態與錯誤訊息區塊 -->
-        <div id="message-container" class="mb-4 hidden"></div>
+        <!-- 區塊 2：瀏覽與管理區 -->
+        <div id="section-manage" class="bg-white rounded-xl shadow-lg p-6 hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">學生資料庫</h2>
+                <button id="refresh-btn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium flex items-center transition">
+                    <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    重新整理
+                </button>
+            </div>
 
-        <!-- Base64 字串長度提示 -->
-        <div id="base64-container" class="mb-6 text-xs text-gray-500 bg-gray-50 p-3 rounded-md break-all overflow-hidden h-20 relative hidden">
-            <div class="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-transparent to-gray-50 pointer-events-none"></div>
-            <strong>Base64 預覽 (已壓縮):</strong><br/>
-            <span id="base64-text"></span>
+            <!-- 學生卡片網格 -->
+            <div id="students-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                <!-- 卡片由 JS 動態生成 -->
+                <div class="col-span-full text-center py-10 text-gray-500" id="loading-text">載入中...</div>
+            </div>
         </div>
 
-        <!-- 儲存按鈕 -->
-        <button id="upload-btn" disabled class="w-full flex items-center justify-center py-3 rounded-lg font-bold text-white transition-colors bg-blue-300 cursor-not-allowed">
-            <svg id="upload-icon" class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-            </svg>
-            <span id="upload-text">儲存至 Firestore</span>
-        </button>
+    </main>
+
+    <!-- 編輯學生 Modal -->
+    <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm">
+            <h3 class="text-lg font-bold mb-4">編輯學生資料</h3>
+            <input type="hidden" id="edit-doc-id">
+            <div class="mb-3">
+                <label class="block text-sm font-medium text-gray-700 mb-1">姓名 (不可改，作為唯一識別)</label>
+                <input type="text" id="edit-name" disabled class="w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-100 text-gray-500">
+            </div>
+            <div class="mb-3">
+                <label class="block text-sm font-medium text-gray-700 mb-1">班級</label>
+                <input type="text" id="edit-class" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div class="mb-5">
+                <label class="block text-sm font-medium text-gray-700 mb-1">學號</label>
+                <input type="text" id="edit-num" class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button id="cancel-edit-btn" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-md text-sm">取消</button>
+                <button id="save-edit-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-bold">儲存修改</button>
+            </div>
+        </div>
     </div>
 
-    <!-- 注意：這裡必須加上 type="module" 才能使用 import 語法 -->
     <script type="module">
-        // 1. 從 Firebase CDN 引入所需的模組
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-analytics.js";
-        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
-        // 2. 你的 Firebase 設定
+        // 您的 Firebase 設定
         const firebaseConfig = {
             apiKey: "AIzaSyB9jnyP4N-BSDDrSxaKgzL_t0U3ui4HvnE",
             authDomain: "sitting-plan-ac6b0.firebaseapp.com",
             projectId: "sitting-plan-ac6b0",
             storageBucket: "sitting-plan-ac6b0.firebasestorage.app",
             messagingSenderId: "487050816621",
-            appId: "1:487050816621:web:38cb490e138c14ba8ba364",
-            measurementId: "G-KGTEJM430H"
+            appId: "1:487050816621:web:38cb490e138c14ba8ba364"
         };
 
-        // 3. 初始化 Firebase 與 Firestore
         const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
         const db = getFirestore(app);
 
-        // ==========================================
-        // 以下為 UI 與圖片處理邏輯
-        // ==========================================
+        // --- UI 切換邏輯 ---
+        const tabUpload = document.getElementById('tab-upload');
+        const tabManage = document.getElementById('tab-manage');
+        const secUpload = document.getElementById('section-upload');
+        const secManage = document.getElementById('section-manage');
 
+        tabUpload.addEventListener('click', () => {
+            secUpload.classList.remove('hidden');
+            secManage.classList.add('hidden');
+            tabUpload.classList.add('bg-blue-700');
+            tabManage.classList.remove('bg-blue-700');
+        });
+
+        tabManage.addEventListener('click', () => {
+            secUpload.classList.add('hidden');
+            secManage.classList.remove('hidden');
+            tabManage.classList.add('bg-blue-700');
+            tabUpload.classList.remove('bg-blue-700');
+            loadStudents(); // 切換時自動載入資料
+        });
+
+        // --- 批次上傳邏輯 ---
         const fileInput = document.getElementById('file-input');
-        const selectBtn = document.getElementById('select-btn');
-        const previewImg = document.getElementById('preview-img');
-        const placeholderIcon = document.getElementById('placeholder-icon');
-        const messageContainer = document.getElementById('message-container');
-        const base64Container = document.getElementById('base64-container');
-        const base64Text = document.getElementById('base64-text');
-        const uploadBtn = document.getElementById('upload-btn');
-        const uploadText = document.getElementById('upload-text');
-        const uploadIcon = document.getElementById('upload-icon');
+        const previewSection = document.getElementById('preview-section');
+        const previewTbody = document.getElementById('preview-tbody');
+        const previewCount = document.getElementById('preview-count');
+        const startUploadBtn = document.getElementById('start-upload-btn');
+        
+        let pendingUploads = []; // 存放準備上傳的資料
 
-        let currentBase64 = null;
+        // 🌟 更新後的解析檔名邏輯 (固定位置切割)
+        function parseFilename(filename) {
+            // 去除副檔名 (例如 .jpg, .png)
+            const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.')) || filename;
+            
+            // 確保檔名長度至少有 5 個字元 (2碼班級 + 2碼學號 + 至少1個字的姓名)
+            if (nameWithoutExt.length >= 5) {
+                return {
+                    className: nameWithoutExt.substring(0, 2), // 擷取第 1~2 個字元 (班級)
+                    studentNum: nameWithoutExt.substring(2, 4), // 擷取第 3~4 個字元 (學號)
+                    name: nameWithoutExt.substring(4).trim()    // 擷取第 5 個字元到最後 (姓名)，並去除可能的多餘空白
+                };
+            }
+            
+            // 如果檔名太短不符合規則，回傳備用方案
+            return { className: '未知', studentNum: '00', name: nameWithoutExt };
+        }
 
-        function showMessage(type, text) {
-            messageContainer.classList.remove('hidden');
-            if (type === 'error') {
-                messageContainer.className = 'mb-4 p-3 bg-red-50 text-red-600 rounded-md flex items-center text-sm';
-                messageContainer.innerHTML = `<svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>${text}`;
-            } else if (type === 'success') {
-                messageContainer.className = 'mb-4 p-3 bg-green-50 text-green-600 rounded-md flex items-center text-sm';
-                messageContainer.innerHTML = `<svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>${text}`;
+        // 壓縮圖片並轉為 Base64 (回傳 Promise)
+        function processImage(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const MAX_WIDTH = 150;
+                        const MAX_HEIGHT = 150;
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > height) {
+                            if (width > MAX_WIDTH) {
+                                height = Math.round(height * (MAX_WIDTH / width));
+                                width = MAX_WIDTH;
+                            }
+                        } else {
+                            if (height > MAX_HEIGHT) {
+                                width = Math.round(width * (MAX_HEIGHT / height));
+                                height = MAX_HEIGHT;
+                            }
+                        }
+
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/jpeg', 0.7));
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 選擇檔案後的處理
+        fileInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+            if (files.length === 0) return;
+
+            pendingUploads = [];
+            previewTbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">圖片處理中...</td></tr>';
+            previewSection.classList.remove('hidden');
+            startUploadBtn.disabled = false;
+            startUploadBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+
+            const results = [];
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const parsed = parseFilename(file.name);
+                const base64 = await processImage(file);
+                
+                results.push({
+                    id: parsed.name, // 使用姓名作為唯一 ID
+                    className: parsed.className,
+                    studentNum: parsed.studentNum,
+                    name: parsed.name,
+                    photoBase64: base64,
+                    status: '等待上傳'
+                });
+            }
+
+            pendingUploads = results;
+            previewCount.textContent = pendingUploads.length;
+            renderPreviewTable();
+        });
+
+        function renderPreviewTable() {
+            previewTbody.innerHTML = '';
+            pendingUploads.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="py-2 px-4 border-b"><img src="${item.photoBase64}" class="w-10 h-10 rounded-full object-cover border"></td>
+                    <td class="py-2 px-4 border-b font-medium text-gray-800">${item.className}</td>
+                    <td class="py-2 px-4 border-b text-gray-600">${item.studentNum}</td>
+                    <td class="py-2 px-4 border-b font-bold text-blue-600">${item.name}</td>
+                    <td class="py-2 px-4 border-b text-sm" id="status-${index}">${item.status}</td>
+                `;
+                previewTbody.appendChild(tr);
+            });
+        }
+
+        // 執行批次上傳至 Firestore
+        startUploadBtn.addEventListener('click', async () => {
+            if (pendingUploads.length === 0) return;
+
+            startUploadBtn.disabled = true;
+            startUploadBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            
+            const progressContainer = document.getElementById('upload-progress-container');
+            const progressBar = document.getElementById('upload-progress-bar');
+            const statusText = document.getElementById('upload-status');
+            
+            progressContainer.classList.remove('hidden');
+            statusText.classList.remove('hidden');
+
+            let successCount = 0;
+
+            for (let i = 0; i < pendingUploads.length; i++) {
+                const student = pendingUploads[i];
+                const statusCell = document.getElementById(`status-${i}`);
+                
+                try {
+                    statusCell.innerHTML = '<span class="text-blue-500 animate-pulse">寫入中...</span>';
+                    
+                    // 使用姓名做為 Document ID。使用 { merge: true } 確保如果該學生已存在，只更新資料而不會刪除其他潛在欄位
+                    const docRef = doc(db, "students", student.id);
+                    await setDoc(docRef, {
+                        className: student.className,
+                        studentNum: student.studentNum,
+                        name: student.name,
+                        photoBase64: student.photoBase64,
+                        updatedAt: new Date()
+                    }, { merge: true });
+
+                    statusCell.innerHTML = '<span class="text-green-600 font-bold">✓ 成功</span>';
+                    successCount++;
+                } catch (error) {
+                    console.error(error);
+                    statusCell.innerHTML = `<span class="text-red-600">✗ 失敗</span>`;
+                }
+
+                // 更新進度條
+                const percent = Math.round(((i + 1) / pendingUploads.length) * 100);
+                progressBar.style.width = `${percent}%`;
+                statusText.textContent = `上傳進度: ${i + 1} / ${pendingUploads.length} (${percent}%)`;
+            }
+
+            statusText.innerHTML = `<span class="text-green-600 font-bold">上傳完成！共成功寫入 ${successCount} 筆資料。</span>`;
+            
+            // 上傳完畢後，清空 input 以便下次選擇
+            fileInput.value = '';
+        });
+
+        // --- 瀏覽與管理邏輯 ---
+        const studentsGrid = document.getElementById('students-grid');
+        const refreshBtn = document.getElementById('refresh-btn');
+
+        async function loadStudents() {
+            studentsGrid.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500">從 Firestore 載入資料中...</div>';
+            try {
+                const querySnapshot = await getDocs(collection(db, "students"));
+                studentsGrid.innerHTML = '';
+                
+                if (querySnapshot.empty) {
+                    studentsGrid.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500">目前沒有任何學生資料。</div>';
+                    return;
+                }
+
+                // 將資料轉為陣列並按班級、學號排序
+                const studentsList = [];
+                querySnapshot.forEach((doc) => {
+                    studentsList.push({ id: doc.id, ...doc.data() });
+                });
+                
+                studentsList.sort((a, b) => {
+                    if (a.className === b.className) {
+                        return parseInt(a.studentNum) - parseInt(b.studentNum);
+                    }
+                    return a.className.localeCompare(b.className);
+                });
+
+                studentsList.forEach(student => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition p-4 flex flex-col items-center relative group';
+                    card.innerHTML = `
+                        <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition flex space-x-1">
+                            <button class="bg-blue-100 text-blue-600 p-1.5 rounded hover:bg-blue-200" onclick="window.openEditModal('${student.id}', '${student.className}', '${student.studentNum}', '${student.name}')" title="編輯">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            </button>
+                            <button class="bg-red-100 text-red-600 p-1.5 rounded hover:bg-red-200" onclick="window.deleteStudentData('${student.id}')" title="刪除">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </div>
+                        <img src="${student.photoBase64 || ''}" class="w-20 h-20 rounded-full object-cover border-4 border-gray-50 mb-3" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjY2JkNWUxIiBzdHJva2Utd2lkdGg9IjIiPjxwYXRoIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgZD0iTTE2IDdsLTQgNG0wIDBsLTQgNG00LTR2MTJtNC0xMlY0YTEgMSAwIDAwLTEtMWgtNGExIDEgMCAwMC0xIDF2M20xNiAwaC0xNiIvPjwvc3ZnPg=='">
+                        <span class="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-full mb-1">${student.className} - ${student.studentNum}</span>
+                        <h3 class="font-bold text-gray-800 text-lg">${student.name}</h3>
+                    `;
+                    studentsGrid.appendChild(card);
+                });
+
+            } catch (error) {
+                console.error("載入失敗:", error);
+                studentsGrid.innerHTML = `<div class="col-span-full text-center py-10 text-red-500">載入失敗: ${error.message}</div>`;
             }
         }
 
-        selectBtn.addEventListener('click', () => {
-            fileInput.click();
+        refreshBtn.addEventListener('click', loadStudents);
+
+        // --- 編輯與刪除功能 (暴露到全域以便 inline onclick 使用) ---
+        const editModal = document.getElementById('edit-modal');
+        const editDocId = document.getElementById('edit-doc-id');
+        const editClass = document.getElementById('edit-class');
+        const editNum = document.getElementById('edit-num');
+        const editName = document.getElementById('edit-name');
+        
+        window.openEditModal = (id, className, studentNum, name) => {
+            editDocId.value = id;
+            editClass.value = className;
+            editNum.value = studentNum;
+            editName.value = name;
+            editModal.classList.remove('hidden');
+        };
+
+        document.getElementById('cancel-edit-btn').addEventListener('click', () => {
+            editModal.classList.add('hidden');
         });
 
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+        document.getElementById('save-edit-btn').addEventListener('click', async () => {
+            const id = editDocId.value;
+            const btn = document.getElementById('save-edit-btn');
+            btn.textContent = '儲存中...';
+            btn.disabled = true;
 
-            if (!file.type.startsWith('image/')) {
-                showMessage('error', '請上傳圖片檔案 (JPG, PNG)');
-                return;
-            }
-
-            messageContainer.classList.add('hidden');
-
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const img = new Image();
-                img.onload = () => {
-                    // 壓縮圖片尺寸為 150x150
-                    const MAX_WIDTH = 150;
-                    const MAX_HEIGHT = 150;
-                    let width = img.width;
-                    let height = img.height;
-
-                    if (width > height) {
-                        if (width > MAX_WIDTH) {
-                            height = Math.round(height * (MAX_WIDTH / width));
-                            width = MAX_WIDTH;
-                        }
-                    } else {
-                        if (height > MAX_HEIGHT) {
-                            width = Math.round(width * (MAX_HEIGHT / height));
-                            height = MAX_HEIGHT;
-                        }
-                    }
-
-                    const canvas = document.createElement('canvas');
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-
-                    // 轉換為 Base64
-                    currentBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                    
-                    previewImg.src = currentBase64;
-                    previewImg.classList.remove('hidden');
-                    placeholderIcon.classList.add('hidden');
-                    
-                    base64Text.textContent = currentBase64;
-                    base64Container.classList.remove('hidden');
-
-                    uploadBtn.disabled = false;
-                    uploadBtn.className = 'w-full flex items-center justify-center py-3 rounded-lg font-bold text-white transition-colors bg-blue-600 hover:bg-blue-700';
-                };
-                img.src = event.target.result;
-            };
-            reader.readAsDataURL(file);
-        });
-
-        // 實際寫入 Firestore
-        uploadBtn.addEventListener('click', async () => {
-            if (!currentBase64) return;
-            
-            uploadBtn.disabled = true;
-            uploadBtn.className = 'w-full flex items-center justify-center py-3 rounded-lg font-bold text-white transition-colors bg-blue-300 cursor-not-allowed';
-            uploadText.textContent = '上傳中...';
-            uploadText.classList.add('animate-pulse');
-            uploadIcon.classList.add('hidden');
-            messageContainer.classList.add('hidden');
-            
             try {
-                // 假設我們要將圖片存到集合 "students" 中的 "student_01" 文件裡
-                // 使用 { merge: true } 可以避免覆蓋掉該學生的其他資料（如姓名、座號）
-                const studentDocRef = doc(db, "students", "student_01");
-                
-                await setDoc(studentDocRef, {
-                    photoBase64: currentBase64,
-                    updatedAt: new Date()
+                await setDoc(doc(db, "students", id), {
+                    className: editClass.value,
+                    studentNum: editNum.value
                 }, { merge: true });
                 
-                showMessage('success', '成功儲存至 Firestore！');
+                editModal.classList.add('hidden');
+                loadStudents(); // 重新載入畫面
             } catch (error) {
-                console.error("寫入 Firestore 失敗:", error);
-                showMessage('error', '上傳失敗：' + error.message);
+                alert('更新失敗: ' + error.message);
             } finally {
-                uploadBtn.disabled = false;
-                uploadBtn.className = 'w-full flex items-center justify-center py-3 rounded-lg font-bold text-white transition-colors bg-blue-600 hover:bg-blue-700';
-                uploadText.textContent = '儲存至 Firestore';
-                uploadText.classList.remove('animate-pulse');
-                uploadIcon.classList.remove('hidden');
+                btn.textContent = '儲存修改';
+                btn.disabled = false;
             }
         });
+
+        window.deleteStudentData = async (id) => {
+            if (confirm(`確定要刪除學生 ${id} 的資料嗎？此動作無法復原。`)) {
+                try {
+                    await deleteDoc(doc(db, "students", id));
+                    loadStudents(); // 重新載入畫面
+                } catch (error) {
+                    alert('刪除失敗: ' + error.message);
+                }
+            }
+        };
+
     </script>
 </body>
 </html>
