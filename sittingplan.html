@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>班級座位表編輯器</title>
+    <title>班級座位表編輯器 (Firebase 版)</title>
     <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -35,17 +35,13 @@
             <!-- Users Icon -->
             <svg class="w-6 h-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <h1 class="text-xl font-bold text-gray-800">班級座位表編輯器</h1>
+            <span id="sync-status" class="ml-4 text-sm text-gray-400">連線中...</span>
         </div>
         <div class="flex items-center space-x-4">
             <button onclick="window.print()" class="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors">
                 <!-- Printer Icon -->
                 <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
                 <span>匯出 PDF (A4 橫式)</span>
-            </button>
-            <button class="flex items-center space-x-2 text-gray-500 hover:text-gray-700">
-                <!-- LogOut Icon -->
-                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
-                <span>登出</span>
             </button>
         </div>
     </header>
@@ -55,8 +51,8 @@
         <aside 
             id="sidebar"
             class="w-64 bg-white rounded-lg shadow-sm p-4 flex flex-col print-hidden"
-            ondragover="handleDragOver(event)"
-            ondrop="handleDropOnSidebar(event)"
+            ondragover="window.handleDragOver(event)"
+            ondrop="window.handleDropOnSidebar(event)"
         >
             <div class="flex items-center justify-between mb-4 pb-2 border-b">
                 <h2 class="font-semibold text-gray-700" id="unassigned-count">未分配學生 (0)</h2>
@@ -94,8 +90,30 @@
         </section>
     </main>
 
-    <script>
-        // 模擬學生資料
+    <!-- 注意：這裡必須加上 type="module" 才能使用 import -->
+    <script type="module">
+        // 1. 從 Firebase CDN 引入所需的模組
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-analytics.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+        // 2. 你的 Firebase 設定
+        const firebaseConfig = {
+            apiKey: "AIzaSyB9jnyP4N-BSDDrSxaKgzL_t0U3ui4HvnE",
+            authDomain: "sitting-plan-ac6b0.firebaseapp.com",
+            projectId: "sitting-plan-ac6b0",
+            storageBucket: "sitting-plan-ac6b0.firebasestorage.app",
+            messagingSenderId: "487050816621",
+            appId: "1:487050816621:web:38cb490e138c14ba8ba364",
+            measurementId: "G-KGTEJM430H"
+        };
+
+        // 3. 初始化 Firebase 與 Firestore
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getFirestore(app);
+
+        // 模擬學生資料 (未來這部分也可以改從 Firestore 讀取)
         const students = [
             { id: 's1', name: '王小明', photo: 'https://picsum.photos/seed/s1/150/150' },
             { id: 's2', name: '陳大文', photo: 'https://picsum.photos/seed/s2/150/150' },
@@ -107,7 +125,7 @@
             { id: 's8', name: '劉冠宇', photo: 'https://picsum.photos/seed/s8/150/150' },
         ];
 
-        // 初始化 30 個座位
+        // 初始化 30 個空座位
         let seats = Array.from({ length: 30 }, (_, i) => ({
             id: `seat-${i}`,
             studentId: null,
@@ -115,22 +133,64 @@
 
         // 拖曳狀態變數
         let draggedStudentId = null;
-        let dragSource = null; // 'list' 或 'seat-x'
+        let dragSource = null;
 
         // DOM 元素
         const studentListEl = document.getElementById('student-list');
         const seatGridEl = document.getElementById('seat-grid');
         const unassignedCountEl = document.getElementById('unassigned-count');
+        const syncStatusEl = document.getElementById('sync-status');
 
-        // 渲染畫面
+        // ==========================================
+        // Firebase 資料讀寫邏輯
+        // ==========================================
+        const CLASS_DOC_REF = doc(db, "seating_plans", "class_3A");
+
+        // 從 Firestore 載入座位表
+        async function loadSeatsFromFirestore() {
+            try {
+                const docSnap = await getDoc(CLASS_DOC_REF);
+                if (docSnap.exists()) {
+                    // 如果雲端有資料，覆蓋本地的空座位表
+                    seats = docSnap.data().seats;
+                    syncStatusEl.textContent = "已同步最新資料";
+                    syncStatusEl.className = "ml-4 text-sm text-green-500";
+                } else {
+                    syncStatusEl.textContent = "建立新座位表";
+                }
+            } catch (error) {
+                console.error("讀取資料失敗:", error);
+                syncStatusEl.textContent = "讀取失敗 (請檢查規則或網路)";
+                syncStatusEl.className = "ml-4 text-sm text-red-500";
+            }
+            render(); // 讀取完畢後渲染畫面
+        }
+
+        // 儲存座位表到 Firestore
+        async function saveSeatsToFirestore() {
+            syncStatusEl.textContent = "儲存中...";
+            syncStatusEl.className = "ml-4 text-sm text-yellow-500";
+            try {
+                await setDoc(CLASS_DOC_REF, { seats: seats });
+                syncStatusEl.textContent = "已儲存";
+                syncStatusEl.className = "ml-4 text-sm text-green-500";
+            } catch (error) {
+                console.error("儲存資料失敗:", error);
+                syncStatusEl.textContent = "儲存失敗";
+                syncStatusEl.className = "ml-4 text-sm text-red-500";
+            }
+        }
+
+        // ==========================================
+        // 畫面渲染與拖放邏輯
+        // ==========================================
+
         function render() {
             renderSidebar();
             renderSeats();
         }
 
-        // 渲染左側未分配名單
         function renderSidebar() {
-            // 找出尚未安排座位的學生
             const unassignedStudents = students.filter(
                 student => !seats.some(seat => seat.studentId === student.id)
             );
@@ -158,7 +218,6 @@
             });
         }
 
-        // 渲染右側座位表
         function renderSeats() {
             seatGridEl.innerHTML = '';
 
@@ -166,17 +225,14 @@
                 const student = students.find(s => s.id === seat.studentId);
                 const div = document.createElement('div');
                 
-                // 設定座位樣式
                 div.className = `seat-box relative aspect-square rounded-lg border-2 flex flex-col items-center justify-center p-2 transition-all ${
                     student ? 'border-blue-400 bg-blue-50 shadow-sm' : 'border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100'
                 }`;
                 
-                // 設定放置事件
                 div.ondragover = handleDragOver;
                 div.ondrop = (e) => handleDropOnSeat(e, seat.id);
 
                 if (student) {
-                    // 如果座位有人，產生可拖曳的學生卡片
                     const innerDiv = document.createElement('div');
                     innerDiv.className = "w-full h-full flex flex-col items-center justify-center cursor-grab active:cursor-grabbing";
                     innerDiv.draggable = true;
@@ -188,7 +244,6 @@
                     `;
                     div.appendChild(innerDiv);
                 } else {
-                    // 空座位
                     div.innerHTML = '<span class="text-xs text-gray-400 print-hidden">空座位</span>';
                 }
 
@@ -196,22 +251,18 @@
             });
         }
 
-        // 拖曳開始
         function handleDragStart(e, studentId, source) {
             draggedStudentId = studentId;
             dragSource = source;
-            // 必須設定 dataTransfer 才能在某些瀏覽器(如 Firefox)中啟用拖放
             e.dataTransfer.setData('text/plain', studentId);
             e.dataTransfer.effectAllowed = 'move';
         }
 
-        // 允許放置
         function handleDragOver(e) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
         }
 
-        // 放置在座位上
         function handleDropOnSeat(e, targetSeatId) {
             e.preventDefault();
             if (!draggedStudentId) return;
@@ -220,41 +271,43 @@
             const targetSeat = seats[targetSeatIndex];
 
             if (dragSource.startsWith('seat-')) {
-                // 從另一個座位拖過來 -> 交換座位
                 const sourceSeatIndex = seats.findIndex(s => s.id === dragSource);
                 const tempStudentId = targetSeat.studentId;
                 seats[targetSeatIndex].studentId = seats[sourceSeatIndex].studentId;
                 seats[sourceSeatIndex].studentId = tempStudentId;
             } else if (dragSource === 'list') {
-                // 從側邊欄拖過來 -> 直接覆蓋目標座位 (原本的人會自動回到未分配名單)
                 seats[targetSeatIndex].studentId = draggedStudentId;
             }
 
-            // 重置狀態並重新渲染
             draggedStudentId = null;
             dragSource = null;
+            
             render();
+            saveSeatsToFirestore(); // 變更後自動存檔
         }
 
-        // 放置在側邊欄 (移除座位)
         function handleDropOnSidebar(e) {
             e.preventDefault();
-            
-            // 只有當來源是座位時，才需要移除
             if (dragSource && dragSource.startsWith('seat-')) {
                 const sourceSeatIndex = seats.findIndex(s => s.id === dragSource);
                 if (sourceSeatIndex !== -1) {
                     seats[sourceSeatIndex].studentId = null;
                     render();
+                    saveSeatsToFirestore(); // 變更後自動存檔
                 }
             }
-            
             draggedStudentId = null;
             dragSource = null;
         }
 
-        // 初始渲染
-        render();
+        // 因為我們使用了 type="module"，作用域是封閉的。
+        // 為了讓 HTML 標籤上的 ondragover 等屬性能夠呼叫到這些函式，我們需要將它們綁定到 window 物件上。
+        window.handleDragOver = handleDragOver;
+        window.handleDropOnSidebar = handleDropOnSidebar;
+
+        // 啟動應用程式：先載入資料，再渲染畫面
+        loadSeatsFromFirestore();
+
     </script>
 </body>
 </html>
