@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>上傳學生相片 (Base64)</title>
+    <title>上傳學生相片 (寫入 Firestore)</title>
     <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -49,8 +49,33 @@
         </button>
     </div>
 
-    <script>
-        // 取得 DOM 元素
+    <!-- 注意：這裡必須加上 type="module" 才能使用 import 語法 -->
+    <script type="module">
+        // 1. 從 Firebase CDN 引入所需的模組
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-analytics.js";
+        import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+        // 2. 你的 Firebase 設定
+        const firebaseConfig = {
+            apiKey: "AIzaSyB9jnyP4N-BSDDrSxaKgzL_t0U3ui4HvnE",
+            authDomain: "sitting-plan-ac6b0.firebaseapp.com",
+            projectId: "sitting-plan-ac6b0",
+            storageBucket: "sitting-plan-ac6b0.firebasestorage.app",
+            messagingSenderId: "487050816621",
+            appId: "1:487050816621:web:38cb490e138c14ba8ba364",
+            measurementId: "G-KGTEJM430H"
+        };
+
+        // 3. 初始化 Firebase 與 Firestore
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getFirestore(app);
+
+        // ==========================================
+        // 以下為 UI 與圖片處理邏輯
+        // ==========================================
+
         const fileInput = document.getElementById('file-input');
         const selectBtn = document.getElementById('select-btn');
         const previewImg = document.getElementById('preview-img');
@@ -64,7 +89,6 @@
 
         let currentBase64 = null;
 
-        // 顯示訊息的輔助函數
         function showMessage(type, text) {
             messageContainer.classList.remove('hidden');
             if (type === 'error') {
@@ -76,35 +100,31 @@
             }
         }
 
-        // 點擊「選擇相片」按鈕觸發隱藏的 file input
         selectBtn.addEventListener('click', () => {
             fileInput.click();
         });
 
-        // 處理圖片選擇與壓縮
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
-            // 檢查是否為圖片
             if (!file.type.startsWith('image/')) {
                 showMessage('error', '請上傳圖片檔案 (JPG, PNG)');
                 return;
             }
 
-            messageContainer.classList.add('hidden'); // 清除之前的訊息
+            messageContainer.classList.add('hidden');
 
             const reader = new FileReader();
             reader.onload = (event) => {
                 const img = new Image();
                 img.onload = () => {
-                    // 1. 設定壓縮後的目標尺寸 (150x150)
+                    // 壓縮圖片尺寸為 150x150
                     const MAX_WIDTH = 150;
                     const MAX_HEIGHT = 150;
                     let width = img.width;
                     let height = img.height;
 
-                    // 計算等比例縮放
                     if (width > height) {
                         if (width > MAX_WIDTH) {
                             height = Math.round(height * (MAX_WIDTH / width));
@@ -117,17 +137,15 @@
                         }
                     }
 
-                    // 2. 使用 Canvas 繪製縮小後的圖片
                     const canvas = document.createElement('canvas');
                     canvas.width = width;
                     canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
 
-                    // 3. 將 Canvas 轉換為 Base64 (JPEG 格式，品質 0.7)
+                    // 轉換為 Base64
                     currentBase64 = canvas.toDataURL('image/jpeg', 0.7);
                     
-                    // 更新 UI 顯示
                     previewImg.src = currentBase64;
                     previewImg.classList.remove('hidden');
                     placeholderIcon.classList.add('hidden');
@@ -135,7 +153,6 @@
                     base64Text.textContent = currentBase64;
                     base64Container.classList.remove('hidden');
 
-                    // 啟用上傳按鈕
                     uploadBtn.disabled = false;
                     uploadBtn.className = 'w-full flex items-center justify-center py-3 rounded-lg font-bold text-white transition-colors bg-blue-600 hover:bg-blue-700';
                 };
@@ -144,38 +161,32 @@
             reader.readAsDataURL(file);
         });
 
-        // 模擬上傳至 Firestore
+        // 實際寫入 Firestore
         uploadBtn.addEventListener('click', async () => {
             if (!currentBase64) return;
             
-            // 進入處理中狀態
             uploadBtn.disabled = true;
             uploadBtn.className = 'w-full flex items-center justify-center py-3 rounded-lg font-bold text-white transition-colors bg-blue-300 cursor-not-allowed';
-            uploadText.textContent = '處理中...';
+            uploadText.textContent = '上傳中...';
             uploadText.classList.add('animate-pulse');
             uploadIcon.classList.add('hidden');
             messageContainer.classList.add('hidden');
             
             try {
-                // 模擬網路延遲 1 秒
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                // 假設我們要將圖片存到集合 "students" 中的 "student_01" 文件裡
+                // 使用 { merge: true } 可以避免覆蓋掉該學生的其他資料（如姓名、座號）
+                const studentDocRef = doc(db, "students", "student_01");
                 
-                /* 
-                  【實際的 Firestore 整合方式】
-                  如果你在 HTML 中有引入 Firebase SDK，程式碼會寫在這裡：
-                  
-                  // 假設已經初始化了 db
-                  const studentRef = firebase.firestore().collection("students").doc("student_id_123");
-                  await studentRef.update({
-                    photoBase64: currentBase64
-                  });
-                */
+                await setDoc(studentDocRef, {
+                    photoBase64: currentBase64,
+                    updatedAt: new Date()
+                }, { merge: true });
                 
                 showMessage('success', '成功儲存至 Firestore！');
             } catch (error) {
-                showMessage('error', '上傳失敗');
+                console.error("寫入 Firestore 失敗:", error);
+                showMessage('error', '上傳失敗：' + error.message);
             } finally {
-                // 恢復按鈕狀態
                 uploadBtn.disabled = false;
                 uploadBtn.className = 'w-full flex items-center justify-center py-3 rounded-lg font-bold text-white transition-colors bg-blue-600 hover:bg-blue-700';
                 uploadText.textContent = '儲存至 Firestore';
