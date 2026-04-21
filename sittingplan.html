@@ -148,8 +148,6 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-analytics.js";
-        // 新增載入 collection 和 getDocs 用來讀取學生清單
         import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -165,9 +163,10 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 將原本寫死的學生資料改為空陣列，等待從 Firebase 載入
-        let students = [];
+        // 內建的預設大頭貼 (Base64 SVG)，完全不需要網路連線就能顯示
+        const defaultAvatar = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
 
+        let students = [];
         let config = {
             title: "三年級 跨班選修 座位表",
             rows: 6,
@@ -195,8 +194,6 @@
         async function loadStudentsFromFirebase() {
             try {
                 syncStatusEl.textContent = "載入學生資料中...";
-                // 假設您的學生資料存在 "students" 這個集合中
-                // 如果您的集合名稱不同 (例如 student_profiles)，請修改下方 "students" 字眼
                 const querySnapshot = await getDocs(collection(db, "students"));
                 const fetchedStudents = [];
                 
@@ -206,22 +203,20 @@
                         id: doc.id,
                         name: data.name || '未知',
                         className: data.className || data.class || '未分班',
-                        // 確保讀取到 photo 或 photoUrl 欄位
-                        photo: data.photo || data.photoUrl || 'https://via.placeholder.com/150' 
+                        // 如果資料庫沒有照片，則使用內建的 defaultAvatar
+                        photo: data.photo || data.photoUrl || defaultAvatar 
                     });
                 });
 
                 if (fetchedStudents.length > 0) {
                     students = fetchedStudents;
-                    // 自動展開所有抓取到的班級
                     expandedClasses = new Set(students.map(s => s.className));
                 } else {
-                    // 如果資料庫沒有資料，給予預設假資料方便測試
                     console.warn("Firebase 中沒有找到學生資料，載入預設測試資料");
                     students = [
-                        { id: 's1', name: '王小明', className: '3A', photo: 'https://picsum.photos/seed/s1/150/150' },
-                        { id: 's2', name: '陳大文', className: '3A', photo: 'https://picsum.photos/seed/s2/150/150' },
-                        { id: 's3', name: '李美玲', className: '3A', photo: 'https://picsum.photos/seed/s3/150/150' },
+                        { id: 's1', name: '王小明', className: '3A', photo: defaultAvatar },
+                        { id: 's2', name: '陳大文', className: '3A', photo: defaultAvatar },
+                        { id: 's3', name: '李美玲', className: '3A', photo: defaultAvatar },
                     ];
                 }
             } catch (error) {
@@ -240,10 +235,8 @@
         }
 
         async function loadData() {
-            // 1. 先載入學生名單與相片
             await loadStudentsFromFirebase();
 
-            // 2. 再載入座位表設定
             try {
                 const docSnap = await getDoc(CLASS_DOC_REF);
                 if (docSnap.exists()) {
@@ -421,7 +414,7 @@
                         div.ondragstart = (e) => handleDragStart(e, student.id, 'list');
                         
                         div.innerHTML = `
-                            <img src="${student.photo}" alt="${student.name}" class="w-8 h-8 rounded-full object-cover mr-3 border border-gray-200" />
+                            <img src="${student.photo}" alt="${student.name}" class="w-8 h-8 rounded-full object-cover mr-3 border border-gray-200 bg-gray-100" />
                             <span class="font-medium text-sm text-gray-700">${student.name}</span>
                         `;
                         listContainer.appendChild(div);
@@ -465,7 +458,7 @@
                         innerDiv.ondragstart = (e) => handleDragStart(e, student.id, seat.id);
                         
                         innerDiv.innerHTML = `
-                            <img src="${student.photo}" alt="${student.name}" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover mb-2 border-2 border-white shadow-sm" />
+                            <img src="${student.photo}" alt="${student.name}" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover mb-2 border-2 border-white shadow-sm bg-white" />
                             <span class="font-bold text-sm sm:text-base text-gray-800 whitespace-nowrap">${student.name}</span>
                         `;
                         div.appendChild(innerDiv);
