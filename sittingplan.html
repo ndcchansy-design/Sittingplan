@@ -163,8 +163,8 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 內建的預設大頭貼 (Base64 SVG)，完全不需要網路連線就能顯示
-        const defaultAvatar = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+        // 【修正】使用 Base64 編碼的預設圖片，徹底解決 HTML 引號衝突導致破圖的問題
+        const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzljYTNhZiI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==';
 
         let students = [];
         let config = {
@@ -203,7 +203,6 @@
                         id: doc.id,
                         name: data.name || '未知',
                         className: data.className || data.class || '未分班',
-                        // 如果資料庫沒有照片，則使用內建的 defaultAvatar
                         photo: data.photo || data.photoUrl || defaultAvatar 
                     });
                 });
