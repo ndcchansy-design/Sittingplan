@@ -3,16 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>進階班級座位表編輯器 (獨立間距版)</title>
+    <title>進階班級座位表編輯器 (單頁 A4 列印版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* --- 列印專屬樣式 --- */
         @media print {
-            @page { size: A4 landscape; margin: 15mm; }
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white; }
+            /* 設定 A4 橫式與邊距 */
+            @page { size: A4 landscape; margin: 10mm; }
+            
+            /* 強制隱藏卷軸與多餘頁面 */
+            html, body { 
+                -webkit-print-color-adjust: exact; 
+                print-color-adjust: exact; 
+                background: white; 
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                overflow: hidden !important; 
+            }
+            
             .print-hidden { display: none !important; }
-            .print-area { width: 100% !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; }
-            .seat-box { border-color: #000 !important; }
+            
+            main {
+                display: block !important;
+                width: 100% !important;
+                height: 100% !important;
+                overflow: hidden !important;
+            }
+
+            /* 讓列印區塊絕對定位，完美填滿一頁 A4 */
+            .print-area { 
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100% !important; 
+                height: 100% !important; 
+                padding: 0 !important; 
+                margin: 0 !important; 
+                box-shadow: none !important; 
+                border: none !important;
+                overflow: hidden !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+            }
+
+            /* 避免列印時瀏覽器強制裁切 */
+            .overflow-x-auto, .overflow-y-auto {
+                overflow: visible !important;
+            }
+
+            /* 隱藏輸入框底線 */
+            #chart-title {
+                border: none !important;
+                background: transparent !important;
+            }
+            
+            #seat-grid {
+                padding-bottom: 0 !important;
+            }
         }
+
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
@@ -51,19 +103,17 @@
 
     <!-- 控制面板 (設定行列與間距) -->
     <div class="bg-white border-b px-6 py-4 flex flex-col gap-4 print-hidden shadow-sm z-0 relative">
-        <!-- 第一排：基本行列設定 -->
         <div class="flex flex-wrap gap-6 items-center">
             <div class="flex items-center gap-2">
                 <label class="text-sm font-medium text-gray-600">橫排(列)數:</label>
-                <input type="number" id="input-rows" min="1" max="15" class="w-16 border rounded px-2 py-1 text-center focus:ring-2 focus:ring-blue-400 outline-none bg-gray-50">
+                <input type="number" id="input-rows" min="1" max="25" class="w-16 border rounded px-2 py-1 text-center focus:ring-2 focus:ring-blue-400 outline-none bg-gray-50">
             </div>
             <div class="flex items-center gap-2">
                 <label class="text-sm font-medium text-gray-600">直排(行)數:</label>
-                <input type="number" id="input-cols" min="1" max="15" class="w-16 border rounded px-2 py-1 text-center focus:ring-2 focus:ring-blue-400 outline-none bg-gray-50">
+                <input type="number" id="input-cols" min="1" max="25" class="w-16 border rounded px-2 py-1 text-center focus:ring-2 focus:ring-blue-400 outline-none bg-gray-50">
             </div>
         </div>
         
-        <!-- 第二排：獨立間距設定 (由 JS 動態生成) -->
         <div id="gap-controls-container" class="flex flex-wrap gap-3 items-center bg-gray-50 p-3 rounded-lg border border-gray-200 min-h-[60px]">
             <!-- JS 會在這裡插入滑桿 -->
         </div>
@@ -93,8 +143,8 @@
         </aside>
 
         <!-- 右側：座位表平面圖 -->
-        <section class="flex-1 bg-white rounded-lg shadow-sm p-8 print-area flex flex-col overflow-y-auto relative">
-            <div class="text-center mb-8 flex flex-col items-center">
+        <section class="flex-1 bg-white rounded-lg shadow-sm p-8 print-area flex flex-col overflow-y-auto relative w-full">
+            <div class="text-center mb-8 flex flex-col items-center w-full">
                 <input type="text" id="chart-title" value="自訂座位表" class="text-3xl font-bold text-gray-800 mb-4 text-center border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 outline-none bg-transparent transition-colors w-full max-w-lg">
                 
                 <div class="w-1/2 max-w-md mx-auto h-12 bg-gray-200 rounded-t-lg border-2 border-gray-300 flex items-center justify-center font-bold text-gray-600 tracking-widest">
@@ -102,8 +152,8 @@
                 </div>
             </div>
 
-            <!-- 座位網格 (改用 Flexbox 容器) -->
-            <div class="flex-1 flex items-start justify-center overflow-x-auto">
+            <!-- 座位網格 (外層容器負責置中) -->
+            <div class="flex-1 flex items-start justify-center overflow-x-auto w-full">
                 <div id="seat-grid" class="flex flex-col items-center w-max pb-8" style="row-gap: 1rem;">
                     <!-- JavaScript 動態生成 -->
                 </div>
@@ -129,7 +179,6 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 模擬跨班級學生資料
         const students = [
             { id: 's1', name: '王小明', className: '3A', photo: 'https://picsum.photos/seed/s1/150/150' },
             { id: 's2', name: '陳大文', className: '3A', photo: 'https://picsum.photos/seed/s2/150/150' },
@@ -141,12 +190,11 @@
             { id: 's8', name: '劉冠宇', className: '3C', photo: 'https://picsum.photos/seed/s8/150/150' },
         ];
 
-        // 預設設定：將單一間距改為間距陣列
         let config = {
             title: "三年級 跨班選修 座位表",
             rows: 6,
             cols: 5,
-            columnGaps: [16, 16, 16, 16] // 5行會有4個間距
+            columnGaps: [16, 16, 16, 16]
         };
         
         let seats = [];
@@ -154,7 +202,6 @@
         let draggedStudentId = null;
         let dragSource = null;
 
-        // DOM 元素
         const studentListEl = document.getElementById('student-list');
         const seatGridEl = document.getElementById('seat-grid');
         const syncStatusEl = document.getElementById('sync-status');
@@ -166,26 +213,15 @@
 
         const CLASS_DOC_REF = doc(db, "seating_plans", "custom_class_01");
 
-        // 初始化座位陣列
         function initSeatsArray() {
             const totalSeats = config.rows * config.cols;
             const newSeats = [];
             for (let i = 0; i < totalSeats; i++) {
                 newSeats.push(seats[i] || { id: `seat-${i}`, studentId: null });
             }
-            
-            // 縮小範圍時，將多餘座位上的學生退回
-            if (seats.length > totalSeats) {
-                for (let i = totalSeats; i < seats.length; i++) {
-                    if (seats[i].studentId) {
-                        console.log(`座位縮減，學生 ${seats[i].studentId} 退回名單`);
-                    }
-                }
-            }
             seats = newSeats;
         }
 
-        // 從 Firestore 載入
         async function loadData() {
             try {
                 const docSnap = await getDoc(CLASS_DOC_REF);
@@ -193,12 +229,10 @@
                     const data = docSnap.data();
                     if (data.config) {
                         config = data.config;
-                        // 舊資料相容處理：如果舊資料只有單一 columnGap，轉換為陣列
                         if (config.columnGap !== undefined && !config.columnGaps) {
                             config.columnGaps = Array(Math.max(0, config.cols - 1)).fill(config.columnGap);
                             delete config.columnGap;
                         }
-                        // 確保陣列存在且長度正確
                         if (!config.columnGaps) {
                             config.columnGaps = Array(Math.max(0, config.cols - 1)).fill(16);
                         }
@@ -221,7 +255,6 @@
             render();
         }
 
-        // 儲存到 Firestore
         async function saveData() {
             syncStatusEl.textContent = "儲存中...";
             syncStatusEl.className = "ml-4 text-sm text-yellow-500";
@@ -244,23 +277,20 @@
 
         titleInput.addEventListener('change', (e) => { config.title = e.target.value; saveData(); });
         
-        // 處理行列數變更
         function handleGridChange() {
             const newRows = parseInt(rowsInput.value) || 1;
             const newCols = parseInt(colsInput.value) || 1;
             
             config.rows = newRows;
             
-            // 如果行數改變，需要調整間距陣列的長度
             if (newCols !== config.cols) {
                 const newGaps = [];
                 for (let i = 0; i < newCols - 1; i++) {
-                    // 保留原本的間距設定，新增的行距預設為 16px
                     newGaps.push(config.columnGaps[i] !== undefined ? config.columnGaps[i] : 16);
                 }
                 config.columnGaps = newGaps;
                 config.cols = newCols;
-                renderGapControls(); // 重新生成滑桿
+                renderGapControls();
             }
             
             initSeatsArray();
@@ -271,7 +301,6 @@
         rowsInput.addEventListener('change', handleGridChange);
         colsInput.addEventListener('change', handleGridChange);
 
-        // 動態生成每一行的間距滑桿
         function renderGapControls() {
             gapControlsContainer.innerHTML = '';
             
@@ -296,7 +325,7 @@
                 const input = document.createElement('input');
                 input.type = "range";
                 input.min = "0";
-                input.max = "120"; // 最大間距
+                input.max = "120";
                 input.step = "4";
                 input.value = config.columnGaps[i] !== undefined ? config.columnGaps[i] : 16;
                 input.className = "w-20 h-1.5 bg-gray-200 rounded-lg appearance-none outline-none";
@@ -305,7 +334,6 @@
                 valDisplay.className = "text-xs text-blue-600 font-mono w-6 text-right";
                 valDisplay.textContent = input.value;
 
-                // 拖動時即時更新畫面 (不存檔)
                 input.addEventListener('input', (e) => {
                     const val = parseInt(e.target.value);
                     valDisplay.textContent = val;
@@ -313,10 +341,7 @@
                     renderSeats(); 
                 });
                 
-                // 放開滑鼠時才存檔
-                input.addEventListener('change', () => {
-                    saveData();
-                });
+                input.addEventListener('change', () => { saveData(); });
 
                 gapDiv.appendChild(label);
                 gapDiv.appendChild(input);
@@ -385,7 +410,6 @@
             }
         }
 
-        // 渲染座位表 (改用 Flexbox 逐行渲染，以支援獨立間距)
         function renderSeats() {
             seatGridEl.innerHTML = '';
 
@@ -405,7 +429,6 @@
                         student ? 'border-blue-400 bg-blue-50 shadow-sm' : 'border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100'
                     }`;
                     
-                    // 套用獨立的右側間距 (最後一行不需要右邊距)
                     if (c < config.cols - 1) {
                         const gap = config.columnGaps[c] !== undefined ? config.columnGaps[c] : 16;
                         div.style.marginRight = `${gap}px`;
@@ -487,6 +510,42 @@
 
         window.handleDragOver = handleDragOver;
         window.handleDropOnSidebar = handleDropOnSidebar;
+
+        // ==========================================
+        // 列印自動縮放邏輯 (確保一頁 A4 橫式印完)
+        // ==========================================
+        function applyPrintScale() {
+            const grid = document.getElementById('seat-grid');
+            grid.style.transform = 'none';
+            
+            // 強制重繪以取得真實尺寸
+            void grid.offsetWidth;
+            
+            const rect = grid.getBoundingClientRect();
+            
+            // A4 橫式可用寬高 (扣除邊距與上方標題/講台空間)
+            // 寬度約 1040px，高度約 580px
+            const availableWidth = 1040; 
+            const availableHeight = 580; 
+            
+            // 計算縮放比例 (只縮小不放大，最大為 1)
+            const scale = Math.min(availableWidth / rect.width, availableHeight / rect.height, 1);
+            
+            if (scale < 1) {
+                grid.style.transform = `scale(${scale})`;
+                // 確保縮放時以頂部置中為基準，不會偏離講台
+                grid.style.transformOrigin = 'top center';
+            }
+        }
+
+        function removePrintScale() {
+            const grid = document.getElementById('seat-grid');
+            grid.style.transform = 'none';
+        }
+
+        // 監聽列印事件 (支援點擊按鈕或 Ctrl+P)
+        window.addEventListener('beforeprint', applyPrintScale);
+        window.addEventListener('afterprint', removePrintScale);
 
         loadData();
 
