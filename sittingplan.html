@@ -3,101 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>班級座位表編輯器 (Firebase 版)</title>
-    <!-- 引入 Tailwind CSS -->
+    <title>進階班級座位表編輯器 (獨立間距版)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* 列印專用的 CSS 設定 */
         @media print {
             @page { size: A4 landscape; margin: 15mm; }
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white; }
             .print-hidden { display: none !important; }
-            .print-area { width: 100% !important; padding: 0 !important; margin: 0 !important; }
-            .seat-grid { gap: 0.5rem !important; }
+            .print-area { width: 100% !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; }
             .seat-box { border-color: #000 !important; }
         }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* 隱藏捲軸但保留滾動功能 (美化側邊欄) */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+        /* 隱藏數字輸入框的上下箭頭 */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        
+        /* 自訂滑桿樣式 */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
         }
     </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800 min-h-screen flex flex-col">
 
     <!-- 頂部導覽列 -->
-    <header class="bg-white shadow-sm px-6 py-4 flex justify-between items-center print-hidden">
+    <header class="bg-white shadow-sm px-6 py-4 flex justify-between items-center print-hidden z-10 relative">
         <div class="flex items-center space-x-2">
-            <!-- Users Icon -->
             <svg class="w-6 h-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <h1 class="text-xl font-bold text-gray-800">班級座位表編輯器</h1>
+            <h1 class="text-xl font-bold text-gray-800">進階座位表系統</h1>
             <span id="sync-status" class="ml-4 text-sm text-gray-400">連線中...</span>
         </div>
         <div class="flex items-center space-x-4">
             <button onclick="window.print()" class="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors">
-                <!-- Printer Icon -->
                 <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
-                <span>匯出 PDF (A4 橫式)</span>
+                <span>列印 / 匯出 PDF</span>
             </button>
         </div>
     </header>
 
+    <!-- 控制面板 (設定行列與間距) -->
+    <div class="bg-white border-b px-6 py-4 flex flex-col gap-4 print-hidden shadow-sm z-0 relative">
+        <!-- 第一排：基本行列設定 -->
+        <div class="flex flex-wrap gap-6 items-center">
+            <div class="flex items-center gap-2">
+                <label class="text-sm font-medium text-gray-600">橫排(列)數:</label>
+                <input type="number" id="input-rows" min="1" max="15" class="w-16 border rounded px-2 py-1 text-center focus:ring-2 focus:ring-blue-400 outline-none bg-gray-50">
+            </div>
+            <div class="flex items-center gap-2">
+                <label class="text-sm font-medium text-gray-600">直排(行)數:</label>
+                <input type="number" id="input-cols" min="1" max="15" class="w-16 border rounded px-2 py-1 text-center focus:ring-2 focus:ring-blue-400 outline-none bg-gray-50">
+            </div>
+        </div>
+        
+        <!-- 第二排：獨立間距設定 (由 JS 動態生成) -->
+        <div id="gap-controls-container" class="flex flex-wrap gap-3 items-center bg-gray-50 p-3 rounded-lg border border-gray-200 min-h-[60px]">
+            <!-- JS 會在這裡插入滑桿 -->
+        </div>
+    </div>
+
     <main class="p-6 flex gap-6 flex-1 overflow-hidden">
-        <!-- 左側：未分配學生名單 (列印時隱藏) -->
+        <!-- 左側：班級與學生名單 -->
         <aside 
             id="sidebar"
-            class="w-64 bg-white rounded-lg shadow-sm p-4 flex flex-col print-hidden"
+            class="w-72 bg-white rounded-lg shadow-sm flex flex-col print-hidden shrink-0"
             ondragover="window.handleDragOver(event)"
             ondrop="window.handleDropOnSidebar(event)"
         >
-            <div class="flex items-center justify-between mb-4 pb-2 border-b">
-                <h2 class="font-semibold text-gray-700" id="unassigned-count">未分配學生 (0)</h2>
+            <div class="p-4 border-b bg-gray-50 rounded-t-lg">
+                <h2 class="font-semibold text-gray-700">未分配學生名單</h2>
+                <p class="text-xs text-gray-500 mt-1">點擊班級展開名單，拖曳頭像至座位</p>
             </div>
             
-            <!-- 學生名單容器 -->
-            <div id="student-list" class="flex-1 overflow-y-auto space-y-2 no-scrollbar">
-                <!-- JavaScript 會在這裡生成學生卡片 -->
+            <div id="student-list" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
+                <!-- JavaScript 動態生成 -->
             </div>
 
-            <!-- 垃圾桶區域：將座位上的學生拖到這裡以移除 -->
-            <div class="mt-4 p-4 border-2 border-dashed border-red-200 rounded-lg bg-red-50 text-red-400 flex flex-col items-center justify-center text-sm">
-                <!-- Trash2 Icon -->
+            <div class="m-4 p-4 border-2 border-dashed border-red-200 rounded-lg bg-red-50 text-red-400 flex flex-col items-center justify-center text-sm">
                 <svg class="w-6 h-6 mb-1 opacity-50" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-                <p>拖曳至此移除座位</p>
+                <p>將學生拖曳至此移除座位</p>
             </div>
         </aside>
 
-        <!-- 右側：座位表平面圖 (列印區域) -->
-        <section class="flex-1 bg-white rounded-lg shadow-sm p-8 print-area flex flex-col overflow-y-auto">
-            <div class="text-center mb-8">
-                <h2 class="text-2xl font-bold text-gray-800 mb-2">三年甲班 座位表</h2>
-                <!-- 講台示意 -->
+        <!-- 右側：座位表平面圖 -->
+        <section class="flex-1 bg-white rounded-lg shadow-sm p-8 print-area flex flex-col overflow-y-auto relative">
+            <div class="text-center mb-8 flex flex-col items-center">
+                <input type="text" id="chart-title" value="自訂座位表" class="text-3xl font-bold text-gray-800 mb-4 text-center border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 outline-none bg-transparent transition-colors w-full max-w-lg">
+                
                 <div class="w-1/2 max-w-md mx-auto h-12 bg-gray-200 rounded-t-lg border-2 border-gray-300 flex items-center justify-center font-bold text-gray-600 tracking-widest">
                     講 台
                 </div>
             </div>
 
-            <!-- 座位網格 (6行 x 5列) -->
-            <div class="flex-1 flex items-center justify-center">
-                <div id="seat-grid" class="grid grid-cols-6 gap-4 seat-grid w-full max-w-5xl">
-                    <!-- JavaScript 會在這裡生成座位 -->
+            <!-- 座位網格 (改用 Flexbox 容器) -->
+            <div class="flex-1 flex items-start justify-center overflow-x-auto">
+                <div id="seat-grid" class="flex flex-col items-center w-max pb-8" style="row-gap: 1rem;">
+                    <!-- JavaScript 動態生成 -->
                 </div>
             </div>
         </section>
     </main>
 
-    <!-- 注意：這裡必須加上 type="module" 才能使用 import -->
     <script type="module">
-        // 1. 從 Firebase CDN 引入所需的模組
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-analytics.js";
         import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
-        // 2. 你的 Firebase 設定
         const firebaseConfig = {
             apiKey: "AIzaSyB9jnyP4N-BSDDrSxaKgzL_t0U3ui4HvnE",
             authDomain: "sitting-plan-ac6b0.firebaseapp.com",
@@ -108,82 +126,204 @@
             measurementId: "G-KGTEJM430H"
         };
 
-        // 3. 初始化 Firebase 與 Firestore
         const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
         const db = getFirestore(app);
 
-        // 模擬學生資料 (未來這部分也可以改從 Firestore 讀取)
+        // 模擬跨班級學生資料
         const students = [
-            { id: 's1', name: '王小明', photo: 'https://picsum.photos/seed/s1/150/150' },
-            { id: 's2', name: '陳大文', photo: 'https://picsum.photos/seed/s2/150/150' },
-            { id: 's3', name: '李美玲', photo: 'https://picsum.photos/seed/s3/150/150' },
-            { id: 's4', name: '張家豪', photo: 'https://picsum.photos/seed/s4/150/150' },
-            { id: 's5', name: '林雅婷', photo: 'https://picsum.photos/seed/s5/150/150' },
-            { id: 's6', name: '黃建宏', photo: 'https://picsum.photos/seed/s6/150/150' },
-            { id: 's7', name: '吳淑芬', photo: 'https://picsum.photos/seed/s7/150/150' },
-            { id: 's8', name: '劉冠宇', photo: 'https://picsum.photos/seed/s8/150/150' },
+            { id: 's1', name: '王小明', className: '3A', photo: 'https://picsum.photos/seed/s1/150/150' },
+            { id: 's2', name: '陳大文', className: '3A', photo: 'https://picsum.photos/seed/s2/150/150' },
+            { id: 's3', name: '李美玲', className: '3A', photo: 'https://picsum.photos/seed/s3/150/150' },
+            { id: 's4', name: '張家豪', className: '3B', photo: 'https://picsum.photos/seed/s4/150/150' },
+            { id: 's5', name: '林雅婷', className: '3B', photo: 'https://picsum.photos/seed/s5/150/150' },
+            { id: 's6', name: '黃建宏', className: '3C', photo: 'https://picsum.photos/seed/s6/150/150' },
+            { id: 's7', name: '吳淑芬', className: '3C', photo: 'https://picsum.photos/seed/s7/150/150' },
+            { id: 's8', name: '劉冠宇', className: '3C', photo: 'https://picsum.photos/seed/s8/150/150' },
         ];
 
-        // 初始化 30 個空座位
-        let seats = Array.from({ length: 30 }, (_, i) => ({
-            id: `seat-${i}`,
-            studentId: null,
-        }));
-
-        // 拖曳狀態變數
+        // 預設設定：將單一間距改為間距陣列
+        let config = {
+            title: "三年級 跨班選修 座位表",
+            rows: 6,
+            cols: 5,
+            columnGaps: [16, 16, 16, 16] // 5行會有4個間距
+        };
+        
+        let seats = [];
+        let expandedClasses = new Set(['3A', '3B', '3C']);
         let draggedStudentId = null;
         let dragSource = null;
 
         // DOM 元素
         const studentListEl = document.getElementById('student-list');
         const seatGridEl = document.getElementById('seat-grid');
-        const unassignedCountEl = document.getElementById('unassigned-count');
         const syncStatusEl = document.getElementById('sync-status');
+        const gapControlsContainer = document.getElementById('gap-controls-container');
+        
+        const titleInput = document.getElementById('chart-title');
+        const rowsInput = document.getElementById('input-rows');
+        const colsInput = document.getElementById('input-cols');
 
-        // ==========================================
-        // Firebase 資料讀寫邏輯
-        // ==========================================
-        const CLASS_DOC_REF = doc(db, "seating_plans", "class_3A");
+        const CLASS_DOC_REF = doc(db, "seating_plans", "custom_class_01");
 
-        // 從 Firestore 載入座位表
-        async function loadSeatsFromFirestore() {
+        // 初始化座位陣列
+        function initSeatsArray() {
+            const totalSeats = config.rows * config.cols;
+            const newSeats = [];
+            for (let i = 0; i < totalSeats; i++) {
+                newSeats.push(seats[i] || { id: `seat-${i}`, studentId: null });
+            }
+            
+            // 縮小範圍時，將多餘座位上的學生退回
+            if (seats.length > totalSeats) {
+                for (let i = totalSeats; i < seats.length; i++) {
+                    if (seats[i].studentId) {
+                        console.log(`座位縮減，學生 ${seats[i].studentId} 退回名單`);
+                    }
+                }
+            }
+            seats = newSeats;
+        }
+
+        // 從 Firestore 載入
+        async function loadData() {
             try {
                 const docSnap = await getDoc(CLASS_DOC_REF);
                 if (docSnap.exists()) {
-                    // 如果雲端有資料，覆蓋本地的空座位表
-                    seats = docSnap.data().seats;
+                    const data = docSnap.data();
+                    if (data.config) {
+                        config = data.config;
+                        // 舊資料相容處理：如果舊資料只有單一 columnGap，轉換為陣列
+                        if (config.columnGap !== undefined && !config.columnGaps) {
+                            config.columnGaps = Array(Math.max(0, config.cols - 1)).fill(config.columnGap);
+                            delete config.columnGap;
+                        }
+                        // 確保陣列存在且長度正確
+                        if (!config.columnGaps) {
+                            config.columnGaps = Array(Math.max(0, config.cols - 1)).fill(16);
+                        }
+                    }
+                    if (data.seats) seats = data.seats;
                     syncStatusEl.textContent = "已同步最新資料";
                     syncStatusEl.className = "ml-4 text-sm text-green-500";
                 } else {
+                    initSeatsArray();
                     syncStatusEl.textContent = "建立新座位表";
                 }
             } catch (error) {
-                console.error("讀取資料失敗:", error);
-                syncStatusEl.textContent = "讀取失敗 (請檢查規則或網路)";
+                console.error("讀取失敗:", error);
+                syncStatusEl.textContent = "讀取失敗";
                 syncStatusEl.className = "ml-4 text-sm text-red-500";
+                initSeatsArray();
             }
-            render(); // 讀取完畢後渲染畫面
+            updateUIFromConfig();
+            renderGapControls();
+            render();
         }
 
-        // 儲存座位表到 Firestore
-        async function saveSeatsToFirestore() {
+        // 儲存到 Firestore
+        async function saveData() {
             syncStatusEl.textContent = "儲存中...";
             syncStatusEl.className = "ml-4 text-sm text-yellow-500";
             try {
-                await setDoc(CLASS_DOC_REF, { seats: seats });
+                await setDoc(CLASS_DOC_REF, { config, seats });
                 syncStatusEl.textContent = "已儲存";
                 syncStatusEl.className = "ml-4 text-sm text-green-500";
             } catch (error) {
-                console.error("儲存資料失敗:", error);
+                console.error("儲存失敗:", error);
                 syncStatusEl.textContent = "儲存失敗";
                 syncStatusEl.className = "ml-4 text-sm text-red-500";
             }
         }
 
-        // ==========================================
-        // 畫面渲染與拖放邏輯
-        // ==========================================
+        function updateUIFromConfig() {
+            titleInput.value = config.title;
+            rowsInput.value = config.rows;
+            colsInput.value = config.cols;
+        }
+
+        titleInput.addEventListener('change', (e) => { config.title = e.target.value; saveData(); });
+        
+        // 處理行列數變更
+        function handleGridChange() {
+            const newRows = parseInt(rowsInput.value) || 1;
+            const newCols = parseInt(colsInput.value) || 1;
+            
+            config.rows = newRows;
+            
+            // 如果行數改變，需要調整間距陣列的長度
+            if (newCols !== config.cols) {
+                const newGaps = [];
+                for (let i = 0; i < newCols - 1; i++) {
+                    // 保留原本的間距設定，新增的行距預設為 16px
+                    newGaps.push(config.columnGaps[i] !== undefined ? config.columnGaps[i] : 16);
+                }
+                config.columnGaps = newGaps;
+                config.cols = newCols;
+                renderGapControls(); // 重新生成滑桿
+            }
+            
+            initSeatsArray();
+            render();
+            saveData();
+        }
+
+        rowsInput.addEventListener('change', handleGridChange);
+        colsInput.addEventListener('change', handleGridChange);
+
+        // 動態生成每一行的間距滑桿
+        function renderGapControls() {
+            gapControlsContainer.innerHTML = '';
+            
+            if (config.cols <= 1) {
+                gapControlsContainer.innerHTML = '<span class="text-sm text-gray-400">只有 1 行時無法設定間距</span>';
+                return;
+            }
+
+            const labelSpan = document.createElement('span');
+            labelSpan.className = "text-sm font-bold text-gray-700 mr-2";
+            labelSpan.textContent = "個別行距設定:";
+            gapControlsContainer.appendChild(labelSpan);
+
+            for (let i = 0; i < config.cols - 1; i++) {
+                const gapDiv = document.createElement('div');
+                gapDiv.className = "flex items-center gap-2 bg-white px-3 py-1.5 rounded-md border border-gray-200 shadow-sm";
+                
+                const label = document.createElement('label');
+                label.className = "text-xs font-medium text-gray-600 whitespace-nowrap";
+                label.textContent = `行 ${i + 1} 與 ${i + 2}`;
+                
+                const input = document.createElement('input');
+                input.type = "range";
+                input.min = "0";
+                input.max = "120"; // 最大間距
+                input.step = "4";
+                input.value = config.columnGaps[i] !== undefined ? config.columnGaps[i] : 16;
+                input.className = "w-20 h-1.5 bg-gray-200 rounded-lg appearance-none outline-none";
+                
+                const valDisplay = document.createElement('span');
+                valDisplay.className = "text-xs text-blue-600 font-mono w-6 text-right";
+                valDisplay.textContent = input.value;
+
+                // 拖動時即時更新畫面 (不存檔)
+                input.addEventListener('input', (e) => {
+                    const val = parseInt(e.target.value);
+                    valDisplay.textContent = val;
+                    config.columnGaps[i] = val;
+                    renderSeats(); 
+                });
+                
+                // 放開滑鼠時才存檔
+                input.addEventListener('change', () => {
+                    saveData();
+                });
+
+                gapDiv.appendChild(label);
+                gapDiv.appendChild(input);
+                gapDiv.appendChild(valDisplay);
+                gapControlsContainer.appendChild(gapDiv);
+            }
+        }
 
         function render() {
             renderSidebar();
@@ -191,64 +331,109 @@
         }
 
         function renderSidebar() {
+            studentListEl.innerHTML = '';
+            
             const unassignedStudents = students.filter(
                 student => !seats.some(seat => seat.studentId === student.id)
             );
 
-            unassignedCountEl.textContent = `未分配學生 (${unassignedStudents.length})`;
-            studentListEl.innerHTML = '';
+            const grouped = {};
+            unassignedStudents.forEach(s => {
+                if (!grouped[s.className]) grouped[s.className] = [];
+                grouped[s.className].push(s);
+            });
 
-            if (unassignedStudents.length === 0) {
+            if (Object.keys(grouped).length === 0) {
                 studentListEl.innerHTML = '<p class="text-sm text-gray-400 text-center py-4">所有學生已安排座位</p>';
                 return;
             }
 
-            unassignedStudents.forEach(student => {
-                const div = document.createElement('div');
-                div.className = "flex items-center p-2 bg-gray-50 border border-gray-200 rounded-md cursor-grab active:cursor-grabbing hover:bg-blue-50 hover:border-blue-300 transition-colors";
-                div.draggable = true;
-                div.ondragstart = (e) => handleDragStart(e, student.id, 'list');
+            for (const [className, classStudents] of Object.entries(grouped)) {
+                const isExpanded = expandedClasses.has(className);
                 
-                div.innerHTML = `
-                    <svg class="w-4 h-4 text-gray-400 mr-2" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>
-                    <img src="${student.photo}" alt="${student.name}" class="w-8 h-8 rounded-full object-cover mr-3 border border-gray-300" />
-                    <span class="font-medium text-sm">${student.name}</span>
+                const groupHeader = document.createElement('div');
+                groupHeader.className = "flex items-center justify-between bg-blue-50 px-3 py-2 rounded-md cursor-pointer hover:bg-blue-100 transition-colors mb-2";
+                groupHeader.onclick = () => {
+                    if (expandedClasses.has(className)) expandedClasses.delete(className);
+                    else expandedClasses.add(className);
+                    renderSidebar();
+                };
+                groupHeader.innerHTML = `
+                    <span class="font-bold text-blue-800">${className} 班</span>
+                    <span class="text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded-full">${classStudents.length} 人</span>
                 `;
-                studentListEl.appendChild(div);
-            });
+                studentListEl.appendChild(groupHeader);
+
+                if (isExpanded) {
+                    const listContainer = document.createElement('div');
+                    listContainer.className = "space-y-2 mb-4 pl-2";
+                    
+                    classStudents.forEach(student => {
+                        const div = document.createElement('div');
+                        div.className = "flex items-center p-2 bg-white border border-gray-200 rounded-md cursor-grab active:cursor-grabbing hover:border-blue-400 shadow-sm transition-all";
+                        div.draggable = true;
+                        div.ondragstart = (e) => handleDragStart(e, student.id, 'list');
+                        
+                        div.innerHTML = `
+                            <img src="${student.photo}" alt="${student.name}" class="w-8 h-8 rounded-full object-cover mr-3 border border-gray-200" />
+                            <span class="font-medium text-sm text-gray-700">${student.name}</span>
+                        `;
+                        listContainer.appendChild(div);
+                    });
+                    studentListEl.appendChild(listContainer);
+                }
+            }
         }
 
+        // 渲染座位表 (改用 Flexbox 逐行渲染，以支援獨立間距)
         function renderSeats() {
             seatGridEl.innerHTML = '';
 
-            seats.forEach(seat => {
-                const student = students.find(s => s.id === seat.studentId);
-                const div = document.createElement('div');
+            for (let r = 0; r < config.rows; r++) {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = "flex flex-row items-center";
                 
-                div.className = `seat-box relative aspect-square rounded-lg border-2 flex flex-col items-center justify-center p-2 transition-all ${
-                    student ? 'border-blue-400 bg-blue-50 shadow-sm' : 'border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100'
-                }`;
-                
-                div.ondragover = handleDragOver;
-                div.ondrop = (e) => handleDropOnSeat(e, seat.id);
+                for (let c = 0; c < config.cols; c++) {
+                    const index = r * config.cols + c;
+                    const seat = seats[index];
+                    if (!seat) continue;
 
-                if (student) {
-                    const innerDiv = document.createElement('div');
-                    innerDiv.className = "w-full h-full flex flex-col items-center justify-center cursor-grab active:cursor-grabbing";
-                    innerDiv.draggable = true;
-                    innerDiv.ondragstart = (e) => handleDragStart(e, student.id, seat.id);
+                    const student = students.find(s => s.id === seat.studentId);
+                    const div = document.createElement('div');
                     
-                    innerDiv.innerHTML = `
-                        <img src="${student.photo}" alt="${student.name}" class="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover mb-2 border-2 border-white shadow-sm" />
-                        <span class="font-bold text-sm sm:text-base text-gray-800 whitespace-nowrap">${student.name}</span>
-                    `;
-                    div.appendChild(innerDiv);
-                } else {
-                    div.innerHTML = '<span class="text-xs text-gray-400 print-hidden">空座位</span>';
-                }
+                    div.className = `seat-box relative w-20 h-20 sm:w-24 sm:h-24 rounded-lg border-2 flex flex-col items-center justify-center p-1 transition-all ${
+                        student ? 'border-blue-400 bg-blue-50 shadow-sm' : 'border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100'
+                    }`;
+                    
+                    // 套用獨立的右側間距 (最後一行不需要右邊距)
+                    if (c < config.cols - 1) {
+                        const gap = config.columnGaps[c] !== undefined ? config.columnGaps[c] : 16;
+                        div.style.marginRight = `${gap}px`;
+                    }
+                    
+                    div.ondragover = handleDragOver;
+                    div.ondrop = (e) => handleDropOnSeat(e, seat.id);
 
-                seatGridEl.appendChild(div);
-            });
+                    if (student) {
+                        const innerDiv = document.createElement('div');
+                        innerDiv.className = "w-full h-full flex flex-col items-center justify-center cursor-grab active:cursor-grabbing";
+                        innerDiv.draggable = true;
+                        innerDiv.ondragstart = (e) => handleDragStart(e, student.id, seat.id);
+                        
+                        innerDiv.innerHTML = `
+                            <img src="${student.photo}" alt="${student.name}" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover mb-1 border-2 border-white shadow-sm" />
+                            <span class="font-bold text-xs sm:text-sm text-gray-800 whitespace-nowrap">${student.name}</span>
+                            <span class="text-[10px] text-gray-500">${student.className}</span>
+                        `;
+                        div.appendChild(innerDiv);
+                    } else {
+                        div.innerHTML = '<span class="text-xs text-gray-400 print-hidden">空位</span>';
+                    }
+
+                    rowDiv.appendChild(div);
+                }
+                seatGridEl.appendChild(rowDiv);
+            }
         }
 
         function handleDragStart(e, studentId, source) {
@@ -283,7 +468,7 @@
             dragSource = null;
             
             render();
-            saveSeatsToFirestore(); // 變更後自動存檔
+            saveData();
         }
 
         function handleDropOnSidebar(e) {
@@ -293,20 +478,17 @@
                 if (sourceSeatIndex !== -1) {
                     seats[sourceSeatIndex].studentId = null;
                     render();
-                    saveSeatsToFirestore(); // 變更後自動存檔
+                    saveData();
                 }
             }
             draggedStudentId = null;
             dragSource = null;
         }
 
-        // 因為我們使用了 type="module"，作用域是封閉的。
-        // 為了讓 HTML 標籤上的 ondragover 等屬性能夠呼叫到這些函式，我們需要將它們綁定到 window 物件上。
         window.handleDragOver = handleDragOver;
         window.handleDropOnSidebar = handleDropOnSidebar;
 
-        // 啟動應用程式：先載入資料，再渲染畫面
-        loadSeatsFromFirestore();
+        loadData();
 
     </script>
 </body>
