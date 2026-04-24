@@ -239,8 +239,22 @@
                 querySnapshot.forEach((doc) => {
                     const data = doc.data();
                     let photoUrl = defaultAvatar;
-                    if(data.photoBase64) photoUrl = 'data:image/png;base64,' + data.photoBase64;
-                    else if(data.photoUrl) photoUrl = data.photoUrl;
+                    
+                    // --- 修改這裡：增強照片讀取邏輯，適應不同格式 ---
+                    if (data.photoBase64) {
+                        // 檢查字串是否已經包含 'data:image' 開頭
+                        if (String(data.photoBase64).startsWith('data:image')) {
+                            photoUrl = data.photoBase64; // 如果已經有前綴，就直接使用
+                        } else {
+                            photoUrl = 'data:image/png;base64,' + data.photoBase64; // 如果沒有，才幫它加上去
+                        }
+                    } else if (data.photoUrl) {
+                        photoUrl = data.photoUrl;
+                    } else if (data.photo) {
+                        // 額外容錯：如果您的 Firestore 欄位名稱剛好叫做 'photo'
+                        photoUrl = data.photo; 
+                    }
+                    // ---------------------------------------------
                     
                     let rawNumber = data.studentNum || data.number || data.seatNumber || '';
                     let displayNum = rawNumber ? String(rawNumber).match(/\d+/)?.[0].padStart(2, '0') || rawNumber : '';
@@ -251,50 +265,6 @@
                 });
                 students = fetchedStudents;
             } catch (error) { console.error("讀取學生失敗:", error); }
-        }
-
-        function initSeatsArray() {
-            const totalSeats = config.rows * config.cols;
-            const newSeats = [];
-            for (let i = 0; i < totalSeats; i++) newSeats.push(seats[i] || { id: `seat-${i}`, studentId: null });
-            seats = newSeats;
-        }
-
-        async function loadData() {
-            const syncStatusEl = document.getElementById('sync-status');
-            syncStatusEl.textContent = "載入中...";
-            try {
-                const docSnap = await getDoc(doc(db, "seating_plans", currentPlanId));
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    config = data.config || config;
-                    seats = data.seats || [];
-                    if(!config.columnGaps) config.columnGaps = Array(Math.max(0, config.cols - 1)).fill(16);
-                    syncStatusEl.textContent = "已同步";
-                }
-                initSeatsArray();
-            } catch (error) {
-                console.error("讀取失敗:", error);
-                syncStatusEl.textContent = "讀取失敗";
-            }
-            updateUIFromConfig();
-            renderGapControls();
-            render();
-        }
-
-        async function saveData() {
-            if(!currentPlanId) return;
-            const syncStatusEl = document.getElementById('sync-status');
-            syncStatusEl.textContent = "儲存中...";
-            try {
-                await setDoc(doc(db, "seating_plans", currentPlanId), { 
-                    config, seats, userId: currentUser.uid, updatedAt: serverTimestamp() 
-                }, { merge: true });
-                syncStatusEl.textContent = "已儲存";
-            } catch (error) {
-                console.error("儲存失敗:", error);
-                syncStatusEl.textContent = "儲存失敗";
-            }
         }
 
         // UI 綁定與渲染 (與原版相同)
