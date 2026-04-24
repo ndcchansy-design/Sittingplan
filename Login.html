@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>進階班級座位表系統 (多用戶版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            @page { size: A4 landscape; margin: 0; }
+            html, body { background: white !important; margin: 0 !important; padding: 0 !important; }
+            .print-hidden { display: none !important; }
+            #view-editor { display: flex !important; flex-direction: column !important; height: 100vh !important; }
+            .print-area { position: fixed !important; top: 0; left: 0; width: 100vw !important; height: 100vh !important; padding: 10mm !important; }
+            #print-wrapper { width: max-content !important; max-width: none !important; }
+            #chart-title { border: none !important; background: transparent !important; }
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #3b82f6; cursor: pointer; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800 min-h-screen flex flex-col">
+
+    <!-- 視圖 1：登入畫面 -->
+    <div id="view-login" class="flex-1 flex flex-col items-center justify-center bg-gray-100">
+        <div class="bg-white p-8 rounded-xl shadow-md text-center max-w-sm w-full">
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">座位表管理系統</h1>
+            <p class="text-gray-500 mb-8">請使用學校 Google 帳號登入</p>
+            <button onclick="window.signInWithGoogle()" class="w-full flex items-center justify-center gap-3 bg-white border border-gray-300 rounded-lg px-6 py-3 text-gray-700 hover:bg-gray-50 transition-colors font-medium shadow-sm">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5" alt="Google">
+                使用 Google 登入
+            </button>
+        </div>
+    </div>
+
+    <!-- 視圖 2：個人儀表板 -->
+    <div id="view-dashboard" class="hidden flex-1 flex flex-col">
+        <header class="bg-white shadow-sm px-6 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-gray-800">我的座位表</h1>
+            <div class="flex items-center gap-4">
+                <span id="user-name-display" class="text-sm font-medium text-gray-600"></span>
+                <button onclick="window.signOutUser()" class="text-sm text-red-500 hover:text-red-700 font-medium">登出</button>
+            </div>
+        </header>
+        <main class="p-8 max-w-5xl mx-auto w-full">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-semibold text-gray-700">已儲存的座位表</h2>
+                <button onclick="window.createNewPlan()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors shadow-sm flex items-center gap-2">
+                    <span>+ 新增座位表</span>
+                </button>
+            </div>
+            <div id="dashboard-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- JS 動態生成座位表卡片 -->
+            </div>
+        </main>
+    </div>
+
+    <!-- 視圖 3：編輯器 (原有的系統) -->
+    <div id="view-editor" class="hidden flex-1 flex flex-col h-screen">
+        <header class="bg-white shadow-sm px-6 py-4 flex justify-between items-center print-hidden z-10 relative">
+            <div class="flex items-center space-x-4">
+                <button onclick="window.backToDashboard()" class="text-gray-500 hover:text-gray-800 flex items-center gap-1">
+                    <span>← 返回</span>
+                </button>
+                <h1 class="text-xl font-bold text-gray-800 border-l pl-4">編輯座位表</h1>
+                <span id="sync-status" class="ml-4 text-sm text-gray-400">連線中...</span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button onclick="window.clearAllSeats()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md transition-colors text-sm">清空座位</button>
+                <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors text-sm">列印 / PDF</button>
+            </div>
+        </header>
+
+        <div class="bg-white border-b px-6 py-4 flex flex-col gap-4 print-hidden shadow-sm z-0 relative">
+            <div class="flex flex-wrap gap-6 items-center">
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium text-gray-600">橫排(列):</label>
+                    <input type="number" id="input-rows" min="1" max="25" class="w-16 border rounded px-2 py-1 text-center">
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium text-gray-600">直排(行):</label>
+                    <input type="number" id="input-cols" min="1" max="25" class="w-16 border rounded px-2 py-1 text-center">
+                </div>
+            </div>
+            <div id="gap-controls-container" class="flex flex-wrap gap-3 items-center bg-gray-50 p-3 rounded-lg border min-h-[60px]"></div>
+        </div>
+
+        <main class="p-6 flex gap-6 flex-1 overflow-hidden">
+            <aside id="sidebar" class="w-72 bg-white rounded-lg shadow-sm flex flex-col print-hidden shrink-0" ondragover="window.handleDragOver(event)" ondrop="window.handleDropOnSidebar(event)">
+                <div class="p-4 border-b bg-gray-50 rounded-t-lg"><h2 class="font-semibold text-gray-700">未分配學生</h2></div>
+                <div id="student-list" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar"></div>
+            </aside>
+            <section class="flex-1 bg-white rounded-lg shadow-sm p-8 print-area flex flex-col overflow-y-auto relative w-full">
+                <div id="print-wrapper" class="flex flex-col items-center w-full origin-top transition-transform duration-300">
+                    <div class="text-center mb-8 flex flex-col items-center w-full">
+                        <input type="text" id="chart-title" placeholder="例如: 112學年 3A班 座位表" class="text-3xl font-bold text-gray-800 mb-4 text-center border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 outline-none bg-transparent w-full max-w-lg">
+                    </div>
+                    <div class="flex-1 flex items-start justify-center w-full">
+                        <div id="seat-grid" class="flex flex-col items-center w-max pb-8" style="row-gap: 1rem;"></div>
+                    </div>
+                    <div class="w-1/2 max-w-md mx-auto mt-4 h-12 bg-gray-200 rounded-lg border-2 border-gray-300 flex items-center justify-center font-bold text-gray-600 tracking-widest">講 台</div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, getDocs, query, where, addDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyB9jnyP4N-BSDDrSxaKgzL_t0U3ui4HvnE",
+            authDomain: "sitting-plan-ac6b0.firebaseapp.com",
+            projectId: "sitting-plan-ac6b0",
+            storageBucket: "sitting-plan-ac6b0.firebasestorage.app",
+            messagingSenderId: "487050816621",
+            appId: "1:487050816621:web:38cb490e138c14ba8ba364"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+
+        // 全域狀態
+        let currentUser = null;
+        let currentPlanId = null;
+        let students = [];
+        let config = { title: "新座位表", rows: 6, cols: 5, columnGaps: [16, 16, 16, 16] };
+        let seats = [];
+        let expandedClasses = new Set(); 
+        let draggedStudentId = null;
+        let dragSource = null;
+        const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzljYTNhZiI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==';
+
+        // 視圖切換邏輯
+        function switchView(viewId) {
+            document.getElementById('view-login').classList.add('hidden');
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-editor').classList.add('hidden');
+            document.getElementById(viewId).classList.remove('hidden');
+        }
+
+        // 認證狀態監聽
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('user-name-display').textContent = user.displayName || user.email;
+                loadStudentsFromFirebase(); // 登入後預先載入學生名單
+                showDashboard();
+            } else {
+                currentUser = null;
+                switchView('view-login');
+            }
+        });
+
+        window.signInWithGoogle = () => signInWithPopup(auth, provider).catch(err => alert("登入失敗: " + err.message));
+        window.signOutUser = () => signOut(auth);
+
+        // --- 儀表板邏輯 ---
+        async function showDashboard() {
+            switchView('view-dashboard');
+            currentPlanId = null;
+            const listEl = document.getElementById('dashboard-list');
+            listEl.innerHTML = '<p class="text-gray-500">載入中...</p>';
+
+            try {
+                const q = query(collection(db, "seating_plans"), where("userId", "==", currentUser.uid));
+                const snapshot = await getDocs(q);
+                listEl.innerHTML = '';
+                
+                if (snapshot.empty) {
+                    listEl.innerHTML = '<p class="text-gray-500 col-span-full">目前沒有座位表，請點擊右上角新增。</p>';
+                    return;
+                }
+
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const card = document.createElement('div');
+                    card.className = "bg-white p-5 rounded-lg border shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between";
+                    card.innerHTML = `
+                        <div>
+                            <h3 class="font-bold text-lg text-gray-800 mb-1">${data.config?.title || '未命名座位表'}</h3>
+                            <p class="text-sm text-gray-500">規模: ${data.config?.rows || 0} 列 x ${data.config?.cols || 0} 行</p>
+                        </div>
+                        <div class="flex justify-end gap-2 mt-4 pt-4 border-t">
+                            <button onclick="window.deletePlan('${doc.id}')" class="text-red-500 hover:bg-red-50 px-3 py-1 rounded text-sm transition-colors">刪除</button>
+                            <button onclick="window.openEditor('${doc.id}')" class="bg-blue-50 text-blue-600 hover:bg-blue-100 px-4 py-1 rounded text-sm font-medium transition-colors">編輯</button>
+                        </div>
+                    `;
+                    listEl.appendChild(card);
+                });
+            } catch (error) {
+                console.error("載入列表失敗", error);
+                listEl.innerHTML = '<p class="text-red-500">載入失敗，請檢查權限或網路。</p>';
+            }
+        }
+
+        window.createNewPlan = async () => {
+            try {
+                const newPlan = {
+                    userId: currentUser.uid,
+                    config: { title: "新座位表 (點擊修改標題)", rows: 6, cols: 5, columnGaps: [16,16,16,16] },
+                    seats: [],
+                    createdAt: serverTimestamp()
+                };
+                const docRef = await addDoc(collection(db, "seating_plans"), newPlan);
+                window.openEditor(docRef.id);
+            } catch (error) {
+                alert("建立失敗: " + error.message);
+            }
+        };
+
+        window.deletePlan = async (id) => {
+            if(confirm("確定要刪除這個座位表嗎？此動作無法復原。")) {
+                await deleteDoc(doc(db, "seating_plans", id));
+                showDashboard();
+            }
+        };
+
+        window.openEditor = async (id) => {
+            currentPlanId = id;
+            switchView('view-editor');
+            await loadData();
+        };
+
+        window.backToDashboard = () => {
+            saveData().then(() => showDashboard());
+        };
+
+        // --- 編輯器邏輯 (與原版相似，但改為綁定 currentPlanId) ---
+        async function loadStudentsFromFirebase() {
+            if(students.length > 0) return; // 已載入過
+            try {
+                const querySnapshot = await getDocs(collection(db, "students"));
+                const fetchedStudents = [];
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    let photoUrl = defaultAvatar;
+                    if(data.photoBase64) photoUrl = 'data:image/png;base64,' + data.photoBase64;
+                    else if(data.photoUrl) photoUrl = data.photoUrl;
+                    
+                    let rawNumber = data.studentNum || data.number || data.seatNumber || '';
+                    let displayNum = rawNumber ? String(rawNumber).match(/\d+/)?.[0].padStart(2, '0') || rawNumber : '';
+
+                    fetchedStudents.push({
+                        id: doc.id, name: data.name || '未知', number: displayNum, className: data.className || '未分班', photo: photoUrl
+                    });
+                });
+                students = fetchedStudents;
+            } catch (error) { console.error("讀取學生失敗:", error); }
+        }
+
+        function initSeatsArray() {
+            const totalSeats = config.rows * config.cols;
+            const newSeats = [];
+            for (let i = 0; i < totalSeats; i++) newSeats.push(seats[i] || { id: `seat-${i}`, studentId: null });
+            seats = newSeats;
+        }
+
+        async function loadData() {
+            const syncStatusEl = document.getElementById('sync-status');
+            syncStatusEl.textContent = "載入中...";
+            try {
+                const docSnap = await getDoc(doc(db, "seating_plans", currentPlanId));
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    config = data.config || config;
+                    seats = data.seats || [];
+                    if(!config.columnGaps) config.columnGaps = Array(Math.max(0, config.cols - 1)).fill(16);
+                    syncStatusEl.textContent = "已同步";
+                }
+                initSeatsArray();
+            } catch (error) {
+                console.error("讀取失敗:", error);
+                syncStatusEl.textContent = "讀取失敗";
+            }
+            updateUIFromConfig();
+            renderGapControls();
+            render();
+        }
+
+        async function saveData() {
+            if(!currentPlanId) return;
+            const syncStatusEl = document.getElementById('sync-status');
+            syncStatusEl.textContent = "儲存中...";
+            try {
+                await setDoc(doc(db, "seating_plans", currentPlanId), { 
+                    config, seats, userId: currentUser.uid, updatedAt: serverTimestamp() 
+                }, { merge: true });
+                syncStatusEl.textContent = "已儲存";
+            } catch (error) {
+                console.error("儲存失敗:", error);
+                syncStatusEl.textContent = "儲存失敗";
+            }
+        }
+
+        // UI 綁定與渲染 (與原版相同)
+        const titleInput = document.getElementById('chart-title');
+        const rowsInput = document.getElementById('input-rows');
+        const colsInput = document.getElementById('input-cols');
+
+        function updateUIFromConfig() { titleInput.value = config.title; rowsInput.value = config.rows; colsInput.value = config.cols; }
+        
+        titleInput.addEventListener('change', (e) => { config.title = e.target.value; saveData(); });
+        
+        function handleGridChange() {
+            config.rows = parseInt(rowsInput.value) || 1;
+            const newCols = parseInt(colsInput.value) || 1;
+            if (newCols !== config.cols) {
+                config.columnGaps = Array.from({length: newCols - 1}, (_, i) => config.columnGaps[i] ?? 16);
+                config.cols = newCols;
+                renderGapControls();
+            }
+            initSeatsArray(); render(); saveData();
+        }
+        rowsInput.addEventListener('change', handleGridChange);
+        colsInput.addEventListener('change', handleGridChange);
+
+        function renderGapControls() {
+            const container = document.getElementById('gap-controls-container');
+            container.innerHTML = config.cols <= 1 ? '<span class="text-sm text-gray-400">無法設定間距</span>' : '<span class="text-sm font-bold text-gray-700 mr-2">行距:</span>';
+            for (let i = 0; i < config.cols - 1; i++) {
+                const gapDiv = document.createElement('div');
+                gapDiv.className = "flex items-center gap-2 bg-white px-2 py-1 rounded border";
+                gapDiv.innerHTML = `<label class="text-xs text-gray-600">${i+1}-${i+2}</label>
+                                    <input type="range" min="0" max="120" step="4" value="${config.columnGaps[i]}" class="w-16 h-1.5 bg-gray-200 rounded-lg appearance-none">
+                                    <span class="text-xs text-blue-600 w-6">${config.columnGaps[i]}</span>`;
+                const input = gapDiv.querySelector('input');
+                input.addEventListener('input', (e) => {
+                    config.columnGaps[i] = parseInt(e.target.value);
+                    gapDiv.querySelector('span').textContent = e.target.value;
+                    renderSeats();
+                });
+                input.addEventListener('change', saveData);
+                container.appendChild(gapDiv);
+            }
+        }
+
+        function render() { renderSidebar(); renderSeats(); }
+
+        function renderSidebar() {
+            const listEl = document.getElementById('student-list');
+            listEl.innerHTML = '';
+            const unassigned = students.filter(s => !seats.some(seat => seat.studentId === s.id));
+            const grouped = unassigned.reduce((acc, s) => { (acc[s.className] = acc[s.className] || []).push(s); return acc; }, {});
+            
+            Object.keys(grouped).sort().forEach(className => {
+                const header = document.createElement('div');
+                header.className = "flex justify-between bg-blue-50 px-3 py-2 rounded cursor-pointer mb-2";
+                header.innerHTML = `<span class="font-bold text-blue-800">${className}</span><span class="text-xs bg-blue-200 px-2 py-1 rounded-full">${grouped[className].length}</span>`;
+                header.onclick = () => { expandedClasses.has(className) ? expandedClasses.delete(className) : expandedClasses.add(className); renderSidebar(); };
+                listEl.appendChild(header);
+
+                if (expandedClasses.has(className)) {
+                    grouped[className].sort((a,b)=>a.name.localeCompare(b.name)).forEach(student => {
+                        const div = document.createElement('div');
+                        div.className = "flex items-center p-2 bg-white border rounded cursor-grab mb-2";
+                        div.draggable = true;
+                        div.ondragstart = (e) => { draggedStudentId = student.id; dragSource = 'list'; };
+                        div.innerHTML = `<img src="${student.photo}" class="w-8 h-8 rounded-full mr-3 border"><span class="text-sm"><span class="text-blue-600 font-bold mr-1">(${student.number})</span>${student.name}</span>`;
+                        listEl.appendChild(div);
+                    });
+                }
+            });
+        }
+
+        function renderSeats() {
+            const gridEl = document.getElementById('seat-grid');
+            gridEl.innerHTML = '';
+            for (let r = 0; r < config.rows; r++) {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = "flex flex-row items-center";
+                for (let c = 0; c < config.cols; c++) {
+                    const seat = seats[r * config.cols + c];
+                    const student = students.find(s => s.id === seat?.studentId);
+                    const div = document.createElement('div');
+                    div.className = `relative w-24 h-28 sm:w-28 sm:h-32 rounded-lg border-2 flex flex-col items-center justify-center p-2 ${student ? 'border-blue-400 bg-blue-50' : 'border-dashed border-gray-300 bg-gray-50'}`;
+                    if (c < config.cols - 1) div.style.marginRight = `${config.columnGaps[c]}px`;
+                    div.ondragover = e => e.preventDefault();
+                    div.ondrop = e => {
+                        e.preventDefault();
+                        if (!draggedStudentId) return;
+                        const targetIdx = seats.findIndex(s => s.id === seat.id);
+                        if (dragSource.startsWith('seat-')) {
+                            const srcIdx = seats.findIndex(s => s.id === dragSource);
+                            [seats[targetIdx].studentId, seats[srcIdx].studentId] = [seats[srcIdx].studentId, seats[targetIdx].studentId];
+                        } else seats[targetIdx].studentId = draggedStudentId;
+                        draggedStudentId = null; render(); saveData();
+                    };
+
+                    if (student) {
+                        const inner = document.createElement('div');
+                        inner.className = "w-full h-full flex flex-col items-center justify-center cursor-grab";
+                        inner.draggable = true;
+                        inner.ondragstart = () => { draggedStudentId = student.id; dragSource = seat.id; };
+                        inner.innerHTML = `<img src="${student.photo}" class="w-16 h-16 sm:w-20 sm:h-20 rounded-full mb-2 border-2 border-white"><span class="font-bold text-sm sm:text-base whitespace-nowrap"><span class="text-blue-600 mr-1">(${student.number})</span>${student.name}</span>`;
+                        div.appendChild(inner);
+                    } else div.innerHTML = '<span class="text-xs text-gray-400 print-hidden">空位</span>';
+                    rowDiv.appendChild(div);
+                }
+                gridEl.appendChild(rowDiv);
+            }
+        }
+
+        window.handleDragOver = e => e.preventDefault();
+        window.handleDropOnSidebar = e => {
+            e.preventDefault();
+            if (dragSource?.startsWith('seat-')) {
+                seats.find(s => s.id === dragSource).studentId = null;
+                render(); saveData();
+            }
+        };
+        window.clearAllSeats = () => { if(confirm("確定清空？")) { seats.forEach(s => s.studentId = null); render(); saveData(); } };
+
+    </script>
+</body>
+</html>
