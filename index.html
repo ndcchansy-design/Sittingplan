@@ -8,7 +8,6 @@
     <style>
         /* --- 列印專屬樣式 (強制單頁 A4 橫式、完美縮放置中) --- */
         @media print {
-            /* 設定 A4 橫式且邊距為 0，可消除大部分瀏覽器預設的網址與頁碼 */
             @page { 
                 size: A4 landscape; 
                 margin: 0; 
@@ -41,7 +40,6 @@
                 left: 0 !important;
                 width: 100vw !important; 
                 height: 100vh !important; 
-                /* 使用 Flexbox 讓內容在 A4 紙張上完美水平與垂直置中 */
                 display: flex !important;
                 flex-direction: column !important;
                 align-items: center !important;
@@ -58,7 +56,6 @@
                 width: max-content !important;
                 max-width: none !important;
                 margin: 0 auto !important;
-                /* 確保縮放時以中心點為基準 */
                 transform-origin: center center !important;
             }
 
@@ -87,8 +84,12 @@
         
         #student-list { scroll-behavior: smooth; }
         
-        /* 隱藏區塊的共用 class */
         .hidden-view { display: none !important; }
+
+        /* 抽籤動畫過渡效果 */
+        .picker-transition {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800 min-h-screen flex flex-col">
@@ -151,6 +152,12 @@
                 <span id="sync-status" class="ml-4 text-sm text-gray-400">連線中...</span>
             </div>
             <div class="flex items-center space-x-4">
+                <!-- 新增：隨機抽籤按鈕 -->
+                <button onclick="window.openRandomPicker()" class="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md transition-colors shadow-sm">
+                    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                    <span>隨機抽籤</span>
+                </button>
+                <div class="h-6 w-px bg-gray-300 mx-1"></div>
                 <button onclick="window.clearAllSeats()" class="flex items-center space-x-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md transition-colors">
                     <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
                     <span>清空座位</span>
@@ -225,6 +232,29 @@
                 </div>
             </section>
         </main>
+    </div>
+
+    <!-- ==================== 隨機抽籤 Modal ==================== -->
+    <div id="random-picker-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 z-50 hidden flex items-center justify-center print-hidden backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full text-center transform scale-95 opacity-0 transition-all duration-300" id="random-picker-content">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center justify-center gap-2">
+                <svg class="w-6 h-6 text-purple-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                隨機抽籤
+            </h2>
+            
+            <div class="w-32 h-32 mx-auto mb-4 rounded-full border-4 border-purple-200 overflow-hidden relative bg-gray-50 flex items-center justify-center shadow-inner">
+                <img id="picker-avatar" src="" class="w-full h-full object-cover hidden" alt="Student">
+                <span id="picker-placeholder" class="text-5xl">❓</span>
+            </div>
+            
+            <div id="picker-name" class="text-3xl font-black text-purple-600 mb-2 h-10 flex items-center justify-center picker-transition">準備中...</div>
+            <div id="picker-class" class="text-gray-500 mb-8 h-6 font-medium"></div>
+            
+            <div class="flex gap-3 justify-center">
+                <button onclick="window.closeRandomPicker()" class="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors w-1/2">關閉</button>
+                <button onclick="window.startRandomPick()" id="btn-start-pick" class="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors shadow-md w-1/2">開始抽籤</button>
+            </div>
+        </div>
     </div>
 
     <script type="module">
@@ -784,27 +814,22 @@
         window.handleDragOver = handleDragOver;
         window.handleDropOnSidebar = handleDropOnSidebar;
 
-        // ==================== 列印縮放邏輯 (強制單頁置中) ====================
+        // ==================== 列印縮放邏輯 ====================
         function applyPrintScale() {
             const wrapper = document.getElementById('print-wrapper');
-            // 先重置縮放，取得最原始的實際寬高
             wrapper.style.transform = 'none';
             void wrapper.offsetWidth; 
             
             const width = wrapper.offsetWidth;
             const height = wrapper.offsetHeight;
             
-            // A4 橫式紙張的「安全可用範圍」 (以 96 DPI 估算，約 1123x794)
-            // 這裡設定 1080x750 來保留一點邊距，避免觸發第二頁
             const availableWidth = 1080; 
             const availableHeight = 750; 
             
-            // 計算寬與高的縮放比例，取最小值以確保完全放入一頁中 (無論放大或縮小)
             const scaleX = availableWidth / width;
             const scaleY = availableHeight / height;
             const scale = Math.min(scaleX, scaleY); 
             
-            // 套用縮放，並將變形原點設為正中心
             wrapper.style.transform = `scale(${scale})`;
             wrapper.style.transformOrigin = 'center center';
         }
@@ -815,6 +840,114 @@
 
         window.addEventListener('beforeprint', applyPrintScale);
         window.addEventListener('afterprint', removePrintScale);
+
+        // ==================== 隨機抽籤邏輯 ====================
+        let pickerInterval = null;
+
+        window.openRandomPicker = () => {
+            // 找出已經排在座位上的學生
+            const assignedStudents = seats
+                .filter(s => s.studentId)
+                .map(s => students.find(st => st.id === s.studentId))
+                .filter(Boolean);
+            
+            if (assignedStudents.length === 0) {
+                alert("目前座位表上沒有任何學生，請先安排座位！");
+                return;
+            }
+            
+            const modal = document.getElementById('random-picker-modal');
+            const content = document.getElementById('random-picker-content');
+            
+            // 初始化畫面
+            document.getElementById('picker-avatar').classList.add('hidden');
+            document.getElementById('picker-placeholder').classList.remove('hidden');
+            document.getElementById('picker-name').textContent = "準備抽籤";
+            document.getElementById('picker-name').classList.remove('scale-110', 'text-pink-600');
+            document.getElementById('picker-class').textContent = `可抽取人數：${assignedStudents.length} 人`;
+            
+            const btn = document.getElementById('btn-start-pick');
+            btn.textContent = "開始抽籤";
+            btn.disabled = false;
+            
+            modal.classList.remove('hidden');
+            // 觸發重繪以產生動畫
+            void modal.offsetWidth;
+            content.classList.remove('scale-95', 'opacity-0');
+            content.classList.add('scale-100', 'opacity-100');
+        };
+
+        window.closeRandomPicker = () => {
+            const modal = document.getElementById('random-picker-modal');
+            const content = document.getElementById('random-picker-content');
+            
+            if (pickerInterval) clearInterval(pickerInterval);
+            
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        };
+
+        window.startRandomPick = () => {
+            const assignedStudents = seats
+                .filter(s => s.studentId)
+                .map(s => students.find(st => st.id === s.studentId))
+                .filter(Boolean);
+                
+            if (assignedStudents.length === 0) return;
+            
+            const btn = document.getElementById('btn-start-pick');
+            btn.disabled = true;
+            btn.textContent = "抽籤中...";
+            
+            const nameEl = document.getElementById('picker-name');
+            const classEl = document.getElementById('picker-class');
+            const avatarEl = document.getElementById('picker-avatar');
+            const placeholderEl = document.getElementById('picker-placeholder');
+            
+            // 隱藏大頭貼，顯示問號
+            avatarEl.classList.add('hidden');
+            placeholderEl.classList.remove('hidden');
+            nameEl.classList.remove('scale-110', 'text-pink-600');
+            
+            let counter = 0;
+            const duration = 2000; // 動畫持續時間 (毫秒)
+            const intervalTime = 60; // 每次跳動間隔 (毫秒)
+            const totalSteps = duration / intervalTime;
+            
+            if (pickerInterval) clearInterval(pickerInterval);
+            
+            // 開始快速輪播
+            pickerInterval = setInterval(() => {
+                const randomStudent = assignedStudents[Math.floor(Math.random() * assignedStudents.length)];
+                nameEl.textContent = randomStudent.name;
+                
+                counter++;
+                if (counter >= totalSteps) {
+                    clearInterval(pickerInterval);
+                    
+                    // 最終抽出的學生
+                    const finalStudent = assignedStudents[Math.floor(Math.random() * assignedStudents.length)];
+                    nameEl.textContent = finalStudent.name;
+                    
+                    const numText = finalStudent.number ? `(${finalStudent.number})` : '';
+                    classEl.textContent = `${finalStudent.className || ''} ${numText}`;
+                    
+                    avatarEl.src = finalStudent.photo || defaultAvatar;
+                    avatarEl.classList.remove('hidden');
+                    placeholderEl.classList.add('hidden');
+                    
+                    // 加上強調的特效
+                    nameEl.classList.add('scale-110', 'text-pink-600');
+                    
+                    btn.textContent = "再抽一次";
+                    btn.disabled = false;
+                }
+            }, intervalTime);
+        };
 
     </script>
 </body>
