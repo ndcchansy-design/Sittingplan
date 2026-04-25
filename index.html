@@ -67,14 +67,15 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // ⚠️ 之後除錯時，請把這裡換成您真實的 Firebase 設定
+        // 這裡已經換成您提供的真實 Firebase 設定
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_PROJECT_ID.appspot.com",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID"
+            apiKey: "AIzaSyB9jnyP4N-BSDDrSxaKgzL_t0U3ui4HvnE",
+            authDomain: "sitting-plan-ac6b0.firebaseapp.com",
+            projectId: "sitting-plan-ac6b0",
+            storageBucket: "sitting-plan-ac6b0.firebasestorage.app",
+            messagingSenderId: "487050816621",
+            appId: "1:487050816621:web:38cb490e138c14ba8ba364",
+            measurementId: "G-KGTEJM430H"
         };
 
         // 初始化 Firebase
@@ -102,6 +103,7 @@
         // 2. 從 Firebase 讀取資料
         async function loadStudentsFromFirebase() {
             try {
+                // 假設您的 Firestore 資料庫中，存放學生的集合名稱叫做 "students"
                 const querySnapshot = await getDocs(collection(db, "students"));
                 const fetchedStudents = [];
                 
@@ -139,7 +141,7 @@
                 console.error("讀取學生失敗:", error);
                 document.getElementById('student-list').innerHTML = `
                     <div class="text-red-500 text-center mt-10 p-4 bg-red-50 rounded-lg border border-red-200">
-                        載入失敗！<br>請檢查 Firebase 設定是否正確填寫。<br>
+                        載入失敗！<br>
                         <span class="text-xs text-gray-500 mt-2 block">${error.message}</span>
                     </div>`;
                 // 即使失敗也先渲染空的座位表
@@ -166,7 +168,7 @@
             } else if (students.length > 0) {
                 document.getElementById('class-name-label').textContent = "全部分配完畢";
             } else {
-                document.getElementById('class-name-label').textContent = "無資料";
+                document.getElementById('class-name-label').textContent = "無資料 (請確認資料庫是否有資料)";
             }
 
             unassigned.forEach(student => {
