@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>進階班級座位表編輯器 (單頁 A4 列印版)</title>
+    <title>進階班級座位表系統 (含 Google 登入)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* --- 列印專屬樣式 (強制單頁) --- */
@@ -23,8 +23,8 @@
             
             .print-hidden { display: none !important; }
             
-            main {
-                display: block !important;
+            #editor-view {
+                display: flex !important;
                 width: 100vw !important;
                 height: 100vh !important;
                 margin: 0 !important;
@@ -76,103 +76,155 @@
             cursor: pointer;
         }
         
-        #student-list {
-            scroll-behavior: smooth;
-        }
+        #student-list { scroll-behavior: smooth; }
+        
+        /* 隱藏區塊的共用 class */
+        .hidden-view { display: none !important; }
     </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800 min-h-screen flex flex-col">
 
-    <!-- 頂部導覽列 -->
-    <header class="bg-white shadow-sm px-6 py-4 flex justify-between items-center print-hidden z-10 relative">
-        <div class="flex items-center space-x-2">
-            <svg class="w-6 h-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            <h1 class="text-xl font-bold text-gray-800">進階座位表系統</h1>
-            <span id="sync-status" class="ml-4 text-sm text-gray-400">連線中...</span>
-        </div>
-        <div class="flex items-center space-x-4">
-            <button onclick="window.clearAllSeats()" class="flex items-center space-x-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md transition-colors">
-                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-                <span>清空座位</span>
+    <!-- ==================== 1. 登入畫面 ==================== -->
+    <div id="login-view" class="flex-1 flex flex-col items-center justify-center hidden-view">
+        <div class="bg-white p-10 rounded-xl shadow-lg text-center max-w-md w-full">
+            <svg class="w-16 h-16 text-blue-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">進階座位表系統</h1>
+            <p class="text-gray-500 mb-8">請使用學校 Google 帳號登入以管理座位表</p>
+            <button onclick="window.handleLogin()" class="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors">
+                <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-5 h-5" alt="Google">
+                使用 Google 登入
             </button>
-            <button onclick="window.print()" class="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors">
-                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
-                <span>列印 / 匯出 PDF</span>
-            </button>
-        </div>
-    </header>
-
-    <!-- 控制面板 -->
-    <div class="bg-white border-b px-6 py-4 flex flex-col gap-4 print-hidden shadow-sm z-0 relative">
-        <div class="flex flex-wrap gap-6 items-center">
-            <div class="flex items-center gap-2">
-                <label class="text-sm font-medium text-gray-600">橫排(列)數:</label>
-                <input type="number" id="input-rows" min="1" max="25" class="w-16 border rounded px-2 py-1 text-center focus:ring-2 focus:ring-blue-400 outline-none bg-gray-50">
-            </div>
-            <div class="flex items-center gap-2">
-                <label class="text-sm font-medium text-gray-600">直排(行)數:</label>
-                <input type="number" id="input-cols" min="1" max="25" class="w-16 border rounded px-2 py-1 text-center focus:ring-2 focus:ring-blue-400 outline-none bg-gray-50">
-            </div>
-        </div>
-        
-        <div id="gap-controls-container" class="flex flex-wrap gap-3 items-center bg-gray-50 p-3 rounded-lg border border-gray-200 min-h-[60px]">
-            <!-- JS 會在這裡動態插入滑桿 -->
         </div>
     </div>
 
-    <main class="p-6 flex gap-6 flex-1 overflow-hidden">
-        <!-- 左側：班級與學生名單 -->
-        <aside 
-            id="sidebar"
-            class="w-72 bg-white rounded-lg shadow-sm flex flex-col print-hidden shrink-0"
-            ondragover="window.handleDragOver(event)"
-            ondrop="window.handleDropOnSidebar(event)"
-        >
-            <div class="p-4 border-b bg-gray-50 rounded-t-lg">
-                <h2 class="font-semibold text-gray-700">未分配學生名單</h2>
-                <p class="text-xs text-gray-500 mt-1">點擊班級展開名單，拖曳頭像至座位</p>
+    <!-- ==================== 2. 儀表板 (Dashboard) ==================== -->
+    <div id="dashboard-view" class="flex-1 flex flex-col hidden-view">
+        <header class="bg-white shadow-sm px-6 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <svg class="w-6 h-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><line x1="3" x2="21" y1="9" y2="9"/><line x1="9" x2="9" y1="21" y2="9"/></svg>
+                <h1 class="text-xl font-bold text-gray-800">座位表管理列表</h1>
             </div>
-            
-            <div id="student-list" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
-                <!-- JavaScript 動態生成 -->
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center gap-2 text-sm text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full">
+                    <img id="user-avatar" src="" class="w-6 h-6 rounded-full" alt="avatar">
+                    <span id="user-name">載入中...</span>
+                </div>
+                <button onclick="window.handleLogout()" class="text-sm text-gray-500 hover:text-red-500 transition-colors">登出</button>
+            </div>
+        </header>
+
+        <main class="p-8 max-w-6xl mx-auto w-full flex-1">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">所有座位表</h2>
+                <button onclick="window.createNewPlan()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm flex items-center gap-2">
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    建立新座位表
+                </button>
             </div>
 
-            <div class="m-4 p-4 border-2 border-dashed border-red-200 rounded-lg bg-red-50 text-red-400 flex flex-col items-center justify-center text-sm">
-                <svg class="w-6 h-6 mb-1 opacity-50" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-                <p>將學生拖曳至此移除座位</p>
+            <!-- 座位表列表容器 -->
+            <div id="plans-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- JS 動態產生 -->
             </div>
-        </aside>
+        </main>
+    </div>
 
-        <!-- 右側：座位表平面圖 -->
-        <section class="flex-1 bg-white rounded-lg shadow-sm p-8 print-area flex flex-col overflow-y-auto relative w-full">
+    <!-- ==================== 3. 編輯器 (Editor) ==================== -->
+    <div id="editor-view" class="flex-1 flex flex-col hidden-view">
+        <!-- 頂部導覽列 -->
+        <header class="bg-white shadow-sm px-6 py-4 flex justify-between items-center print-hidden z-10 relative">
+            <div class="flex items-center space-x-4">
+                <button onclick="window.backToDashboard()" class="text-gray-500 hover:text-blue-600 transition-colors flex items-center gap-1 bg-gray-100 hover:bg-blue-50 px-3 py-1.5 rounded-md">
+                    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    返回列表
+                </button>
+                <div class="h-6 w-px bg-gray-300"></div>
+                <h1 class="text-xl font-bold text-gray-800">編輯座位表</h1>
+                <span id="sync-status" class="ml-4 text-sm text-gray-400">連線中...</span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button onclick="window.clearAllSeats()" class="flex items-center space-x-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md transition-colors">
+                    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                    <span>清空座位</span>
+                </button>
+                <button onclick="window.print()" class="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors">
+                    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+                    <span>列印 / 匯出 PDF</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- 控制面板 -->
+        <div class="bg-white border-b px-6 py-4 flex flex-col gap-4 print-hidden shadow-sm z-0 relative">
+            <div class="flex flex-wrap gap-6 items-center">
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium text-gray-600">橫排(列)數:</label>
+                    <input type="number" id="input-rows" min="1" max="25" class="w-16 border rounded px-2 py-1 text-center focus:ring-2 focus:ring-blue-400 outline-none bg-gray-50">
+                </div>
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium text-gray-600">直排(行)數:</label>
+                    <input type="number" id="input-cols" min="1" max="25" class="w-16 border rounded px-2 py-1 text-center focus:ring-2 focus:ring-blue-400 outline-none bg-gray-50">
+                </div>
+            </div>
             
-            <div id="print-wrapper" class="flex flex-col items-center w-full origin-top transition-transform duration-300">
-                <!-- 標題 -->
-                <div class="text-center mb-8 flex flex-col items-center w-full">
-                    <input type="text" id="chart-title" value="自訂座位表" class="text-3xl font-bold text-gray-800 mb-4 text-center border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 outline-none bg-transparent transition-colors w-full max-w-lg">
+            <div id="gap-controls-container" class="flex flex-wrap gap-3 items-center bg-gray-50 p-3 rounded-lg border border-gray-200 min-h-[60px]">
+                <!-- JS 會在這裡動態插入滑桿 -->
+            </div>
+        </div>
+
+        <main class="p-6 flex gap-6 flex-1 overflow-hidden">
+            <!-- 左側：班級與學生名單 -->
+            <aside 
+                id="sidebar"
+                class="w-72 bg-white rounded-lg shadow-sm flex flex-col print-hidden shrink-0"
+                ondragover="window.handleDragOver(event)"
+                ondrop="window.handleDropOnSidebar(event)"
+            >
+                <div class="p-4 border-b bg-gray-50 rounded-t-lg">
+                    <h2 class="font-semibold text-gray-700">未分配學生名單</h2>
+                    <p class="text-xs text-gray-500 mt-1">點擊班級展開名單，拖曳頭像至座位</p>
+                </div>
+                
+                <div id="student-list" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
+                    <!-- JavaScript 動態生成 -->
                 </div>
 
-                <!-- 座位表 -->
-                <div class="flex-1 flex items-start justify-center w-full">
-                    <div id="seat-grid" class="flex flex-col items-center w-max pb-8" style="row-gap: 1rem;">
-                        <!-- JavaScript 動態生成 -->
+                <div class="m-4 p-4 border-2 border-dashed border-red-200 rounded-lg bg-red-50 text-red-400 flex flex-col items-center justify-center text-sm">
+                    <svg class="w-6 h-6 mb-1 opacity-50" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                    <p>將學生拖曳至此移除座位</p>
+                </div>
+            </aside>
+
+            <!-- 右側：座位表平面圖 -->
+            <section class="flex-1 bg-white rounded-lg shadow-sm p-8 print-area flex flex-col overflow-y-auto relative w-full">
+                <div id="print-wrapper" class="flex flex-col items-center w-full origin-top transition-transform duration-300">
+                    <!-- 標題 -->
+                    <div class="text-center mb-8 flex flex-col items-center w-full">
+                        <input type="text" id="chart-title" value="自訂座位表" class="text-3xl font-bold text-gray-800 mb-4 text-center border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 outline-none bg-transparent transition-colors w-full max-w-lg">
+                    </div>
+
+                    <!-- 座位表 -->
+                    <div class="flex-1 flex items-start justify-center w-full">
+                        <div id="seat-grid" class="flex flex-col items-center w-max pb-8" style="row-gap: 1rem;">
+                            <!-- JavaScript 動態生成 -->
+                        </div>
+                    </div>
+
+                    <!-- 講台 (固定在正下方) -->
+                    <div class="w-1/2 max-w-md mx-auto mt-4 h-12 bg-gray-200 rounded-lg border-2 border-gray-300 flex items-center justify-center font-bold text-gray-600 tracking-widest">
+                        講 台
                     </div>
                 </div>
-
-                <!-- 講台 (固定在正下方) -->
-                <div class="w-1/2 max-w-md mx-auto mt-4 h-12 bg-gray-200 rounded-lg border-2 border-gray-300 flex items-center justify-center font-bold text-gray-600 tracking-widest">
-                    講 台
-                </div>
-            </div>
-
-        </section>
-    </main>
+            </section>
+        </main>
+    </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
-        import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
-        // 您的真實 Firebase 設定
+        // Firebase 設定
         const firebaseConfig = {
             apiKey: "AIzaSyB9jnyP4N-BSDDrSxaKgzL_t0U3ui4HvnE",
             authDomain: "sitting-plan-ac6b0.firebaseapp.com",
@@ -184,39 +236,173 @@
         };
 
         const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
         const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
 
-        const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzljYTNhZiI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==';
-
-        let students = [];
-        let config = {
-            title: "三年級 跨班選修 座位表",
-            rows: 6,
-            cols: 5,
-            columnGaps: [16, 16, 16, 16]
-        };
+        // 全域變數
+        let currentUser = null;
+        let currentPlanId = null; // 目前正在編輯的座位表 ID
         
+        let students = [];
+        let config = { title: "新增座位表", rows: 6, cols: 5, columnGaps: [16, 16, 16, 16] };
         let seats = [];
         let expandedClasses = new Set(); 
         let draggedStudentId = null;
         let dragSource = null;
 
+        const defaultAvatar = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzljYTNhZiI+PHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPjwvc3ZnPg==';
+
+        // DOM 元素
+        const loginView = document.getElementById('login-view');
+        const dashboardView = document.getElementById('dashboard-view');
+        const editorView = document.getElementById('editor-view');
+        
         const studentListEl = document.getElementById('student-list');
         const seatGridEl = document.getElementById('seat-grid');
         const syncStatusEl = document.getElementById('sync-status');
         const gapControlsContainer = document.getElementById('gap-controls-container');
-        
         const titleInput = document.getElementById('chart-title');
         const rowsInput = document.getElementById('input-rows');
         const colsInput = document.getElementById('input-cols');
 
-        // 將座位表設定與排版儲存在這個文件中
-        const CLASS_DOC_REF = doc(db, "seating_plans", "custom_class_01");
+        // ==================== 視圖切換 ====================
+        function showView(viewName) {
+            loginView.classList.add('hidden-view');
+            dashboardView.classList.add('hidden-view');
+            editorView.classList.add('hidden-view');
+            
+            if (viewName === 'login') loginView.classList.remove('hidden-view');
+            else if (viewName === 'dashboard') dashboardView.classList.remove('hidden-view');
+            else if (viewName === 'editor') editorView.classList.remove('hidden-view');
+        }
 
-        // 1. 從 Firebase 載入學生名單
+        // ==================== 認證 (Auth) ====================
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                document.getElementById('user-name').textContent = user.displayName || user.email;
+                document.getElementById('user-avatar').src = user.photoURL || defaultAvatar;
+                
+                // 載入學生名單 (只需載入一次)
+                if (students.length === 0) loadStudentsFromFirebase();
+                
+                if (currentPlanId) {
+                    showView('editor');
+                } else {
+                    showView('dashboard');
+                    loadDashboardPlans();
+                }
+            } else {
+                currentUser = null;
+                currentPlanId = null;
+                showView('login');
+            }
+        });
+
+        window.handleLogin = () => signInWithPopup(auth, provider).catch(err => alert("登入失敗: " + err.message));
+        window.handleLogout = () => {
+            currentPlanId = null;
+            signOut(auth);
+        };
+
+        // ==================== 儀表板邏輯 (Dashboard) ====================
+        async function loadDashboardPlans() {
+            const container = document.getElementById('plans-container');
+            container.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500">載入中...</div>';
+            
+            try {
+                // 抓取所有座位表，依建立時間排序
+                const q = query(collection(db, "seating_plans"), orderBy("createdAt", "desc"));
+                const snapshot = await getDocs(q);
+                
+                container.innerHTML = '';
+                
+                if (snapshot.empty) {
+                    container.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500 bg-white rounded-lg border border-dashed border-gray-300">目前沒有任何座位表，點擊右上角建立！</div>';
+                    return;
+                }
+
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const isOwner = data.userId === currentUser.uid;
+                    const dateStr = data.createdAt ? new Date(data.createdAt.toDate()).toLocaleDateString('zh-TW') : '未知時間';
+                    const authorName = data.authorName || data.userEmail || '未知建立者';
+
+                    const card = document.createElement('div');
+                    card.className = "bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col";
+                    
+                    card.innerHTML = `
+                        <div class="flex-1">
+                            <h3 class="text-lg font-bold text-gray-800 mb-1 truncate">${data.config?.title || '未命名座位表'}</h3>
+                            <div class="text-sm text-gray-500 mb-4 space-y-1">
+                                <p class="flex items-center gap-1"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> ${authorName}</p>
+                                <p class="flex items-center gap-1"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> ${dateStr}</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-2 mt-4 pt-4 border-t border-gray-50">
+                            <button onclick="window.openPlan('${doc.id}')" class="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-2 rounded-lg transition-colors text-sm">開啟編輯</button>
+                            ${isOwner ? `<button onclick="window.deletePlan('${doc.id}')" class="px-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors text-sm" title="刪除"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>` : ''}
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            } catch (error) {
+                console.error("載入列表失敗:", error);
+                container.innerHTML = `<div class="col-span-full text-center py-10 text-red-500">載入失敗，請確認資料庫權限。</div>`;
+            }
+        }
+
+        window.createNewPlan = async () => {
+            const title = prompt("請輸入新座位表名稱：", "新學期座位表");
+            if (!title) return;
+
+            const newConfig = { title: title, rows: 6, cols: 5, columnGaps: [16, 16, 16, 16] };
+            const newSeats = Array(30).fill(null).map((_, i) => ({ id: `seat-${i}`, studentId: null }));
+
+            try {
+                const docRef = await addDoc(collection(db, "seating_plans"), {
+                    userId: currentUser.uid,
+                    userEmail: currentUser.email,
+                    authorName: currentUser.displayName || currentUser.email,
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                    config: newConfig,
+                    seats: newSeats
+                });
+                
+                window.openPlan(docRef.id);
+            } catch (error) {
+                alert("建立失敗: " + error.message);
+            }
+        };
+
+        window.deletePlan = async (planId) => {
+            if (confirm("確定要刪除這個座位表嗎？此動作無法復原！")) {
+                try {
+                    await deleteDoc(doc(db, "seating_plans", planId));
+                    loadDashboardPlans();
+                } catch (error) {
+                    alert("刪除失敗: " + error.message);
+                }
+            }
+        };
+
+        window.openPlan = (planId) => {
+            currentPlanId = planId;
+            showView('editor');
+            loadEditorData();
+        };
+
+        window.backToDashboard = () => {
+            currentPlanId = null;
+            showView('dashboard');
+            loadDashboardPlans();
+        };
+
+        // ==================== 編輯器邏輯 (Editor) ====================
         async function loadStudentsFromFirebase() {
             try {
-                syncStatusEl.textContent = "載入學生資料中...";
                 const querySnapshot = await getDocs(collection(db, "students"));
                 const fetchedStudents = [];
                 
@@ -224,11 +410,7 @@
                     const data = doc.data();
                     let photoUrl = defaultAvatar;
                     
-                    const possiblePhotoFields = [
-                        data.photoBase64, data.photo, data.photoUrl, 
-                        data.imageUrl, data.image, data.avatar, data.picture
-                    ];
-                    
+                    const possiblePhotoFields = [data.photoBase64, data.photo, data.photoUrl, data.imageUrl, data.image, data.avatar, data.picture];
                     for (const field of possiblePhotoFields) {
                         if (field && typeof field === 'string' && field.trim() !== '') {
                             if (!field.startsWith('http') && !field.startsWith('data:') && field.length > 100) {
@@ -240,11 +422,7 @@
                         }
                     }
 
-                    const possibleNumFields = [
-                        'studentNum', 'number', 'studentNumber', 'seatNumber', 'no', 'seatNo', 
-                        'classNo', 'studentNo', 'num', 'seat_no', 'student_no', 'class_no'
-                    ];
-                    
+                    const possibleNumFields = ['studentNum', 'number', 'studentNumber', 'seatNumber', 'no', 'seatNo', 'classNo', 'studentNo', 'num', 'seat_no', 'student_no', 'class_no'];
                     let rawNumber = '';
                     for (const fieldName of possibleNumFields) {
                         if (data[fieldName] !== undefined && data[fieldName] !== null && String(data[fieldName]).trim() !== '') {
@@ -256,11 +434,8 @@
                     let displayNum = '';
                     if (rawNumber !== '') {
                         const numMatch = String(rawNumber).match(/\d+/);
-                        if (numMatch) {
-                            displayNum = numMatch[0].padStart(2, '0');
-                        } else {
-                            displayNum = String(rawNumber);
-                        }
+                        if (numMatch) displayNum = numMatch[0].padStart(2, '0');
+                        else displayNum = String(rawNumber);
                     }
 
                     fetchedStudents.push({
@@ -272,22 +447,12 @@
                     });
                 });
 
-                if (fetchedStudents.length > 0) {
-                    students = fetchedStudents;
-                } else {
-                    console.warn("Firebase 中沒有找到學生資料，載入預設測試資料");
-                    students = [
-                        { id: 's1', name: '王小明', number: '01', className: '1A', photo: defaultAvatar },
-                        { id: 's2', name: '陳大文', number: '02', className: '1A', photo: defaultAvatar },
-                    ];
-                }
+                if (fetchedStudents.length > 0) students = fetchedStudents;
             } catch (error) {
                 console.error("讀取學生資料失敗:", error);
-                syncStatusEl.textContent = "學生資料讀取失敗";
             }
         }
 
-        // 2. 初始化座位陣列
         function initSeatsArray() {
             const totalSeats = config.rows * config.cols;
             const newSeats = [];
@@ -297,48 +462,46 @@
             seats = newSeats;
         }
 
-        // 3. 載入座位表設定與排版資料
-        async function loadData() {
-            await loadStudentsFromFirebase();
-
+        async function loadEditorData() {
+            if (!currentPlanId) return;
+            syncStatusEl.textContent = "載入中...";
+            
             try {
-                const docSnap = await getDoc(CLASS_DOC_REF);
+                const docSnap = await getDoc(doc(db, "seating_plans", currentPlanId));
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     if (data.config) {
                         config = data.config;
-                        if (config.columnGap !== undefined && !config.columnGaps) {
-                            config.columnGaps = Array(Math.max(0, config.cols - 1)).fill(config.columnGap);
-                            delete config.columnGap;
-                        }
-                        if (!config.columnGaps) {
-                            config.columnGaps = Array(Math.max(0, config.cols - 1)).fill(16);
-                        }
+                        if (!config.columnGaps) config.columnGaps = Array(Math.max(0, config.cols - 1)).fill(16);
                     }
                     if (data.seats) seats = data.seats;
-                    syncStatusEl.textContent = "已同步最新資料";
+                    
+                    syncStatusEl.textContent = "已同步";
                     syncStatusEl.className = "ml-4 text-sm text-green-500";
-                } else {
-                    initSeatsArray();
-                    syncStatusEl.textContent = "建立新座位表";
                 }
             } catch (error) {
                 console.error("讀取失敗:", error);
                 syncStatusEl.textContent = "讀取失敗";
                 syncStatusEl.className = "ml-4 text-sm text-red-500";
-                initSeatsArray();
             }
+            
             updateUIFromConfig();
             renderGapControls();
             render();
         }
 
-        // 4. 儲存座位表設定與排版資料至 Firebase
         async function saveData() {
+            if (!currentPlanId) return;
             syncStatusEl.textContent = "儲存中...";
             syncStatusEl.className = "ml-4 text-sm text-yellow-500";
+            
             try {
-                await setDoc(CLASS_DOC_REF, { config, seats });
+                await setDoc(doc(db, "seating_plans", currentPlanId), { 
+                    config, 
+                    seats,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+                
                 syncStatusEl.textContent = "已儲存";
                 syncStatusEl.className = "ml-4 text-sm text-green-500";
             } catch (error) {
@@ -361,7 +524,6 @@
             const newCols = parseInt(colsInput.value) || 1;
             
             config.rows = newRows;
-            
             if (newCols !== config.cols) {
                 const newGaps = [];
                 for (let i = 0; i < newCols - 1; i++) {
@@ -380,10 +542,8 @@
         rowsInput.addEventListener('change', handleGridChange);
         colsInput.addEventListener('change', handleGridChange);
 
-        // 渲染個別行距拉桿
         function renderGapControls() {
             gapControlsContainer.innerHTML = '';
-            
             if (config.cols <= 1) {
                 gapControlsContainer.innerHTML = '<span class="text-sm text-gray-400">只有 1 行時無法設定間距</span>';
                 return;
@@ -435,7 +595,6 @@
             renderSeats();
         }
 
-        // 渲染左側名單 (班級分類、點擊展開置頂)
         function renderSidebar() {
             studentListEl.innerHTML = '';
             
@@ -472,9 +631,7 @@
                 groupHeader.onclick = () => {
                     const wasExpanded = expandedClasses.has(className);
                     expandedClasses.clear();
-                    if (!wasExpanded) {
-                        expandedClasses.add(className);
-                    }
+                    if (!wasExpanded) expandedClasses.add(className);
                     renderSidebar();
                     studentListEl.scrollTop = 0;
                 };
@@ -510,7 +667,6 @@
             }
         }
 
-        // 渲染右側座位表
         function renderSeats() {
             seatGridEl.innerHTML = '';
 
@@ -613,9 +769,7 @@
 
         window.clearAllSeats = function() {
             if (confirm("確定要清空所有座位嗎？\n這將會把所有學生移回左側「未分配名單」，方便您重新安排。")) {
-                seats.forEach(seat => {
-                    seat.studentId = null;
-                });
+                seats.forEach(seat => seat.studentId = null);
                 render();
                 saveData();
             }
@@ -644,15 +798,11 @@
         }
 
         function removePrintScale() {
-            const wrapper = document.getElementById('print-wrapper');
-            wrapper.style.transform = 'none';
+            document.getElementById('print-wrapper').style.transform = 'none';
         }
 
         window.addEventListener('beforeprint', applyPrintScale);
         window.addEventListener('afterprint', removePrintScale);
-
-        // 啟動系統
-        loadData();
 
     </script>
 </body>
