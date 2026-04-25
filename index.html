@@ -6,13 +6,17 @@
     <title>進階班級座位表系統 (含 Google 登入)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* --- 列印專屬樣式 (強制單頁) --- */
+        /* --- 列印專屬樣式 (強制單頁 A4 橫式、完美縮放置中) --- */
         @media print {
-            @page { size: A4 landscape; margin: 0; }
+            /* 設定 A4 橫式且邊距為 0，可消除大部分瀏覽器預設的網址與頁碼 */
+            @page { 
+                size: A4 landscape; 
+                margin: 0; 
+            }
             
             html, body { 
-                -webkit-print-color-adjust: exact; 
-                print-color-adjust: exact; 
+                -webkit-print-color-adjust: exact !important; 
+                print-color-adjust: exact !important; 
                 background: white !important; 
                 margin: 0 !important;
                 padding: 0 !important;
@@ -24,7 +28,7 @@
             .print-hidden { display: none !important; }
             
             #editor-view {
-                display: flex !important;
+                display: block !important;
                 width: 100vw !important;
                 height: 100vh !important;
                 margin: 0 !important;
@@ -32,31 +36,36 @@
             }
             
             .print-area { 
-                position: fixed !important;
+                position: absolute !important;
                 top: 0 !important;
                 left: 0 !important;
                 width: 100vw !important; 
                 height: 100vh !important; 
-                padding: 10mm !important; 
-                box-sizing: border-box !important;
-                margin: 0 !important; 
-                box-shadow: none !important; 
-                border: none !important;
-                overflow: hidden !important;
+                /* 使用 Flexbox 讓內容在 A4 紙張上完美水平與垂直置中 */
                 display: flex !important;
                 flex-direction: column !important;
                 align-items: center !important;
-                justify-content: flex-start !important;
+                justify-content: center !important;
+                margin: 0 !important; 
+                padding: 0 !important;
+                box-shadow: none !important; 
+                border: none !important;
+                overflow: hidden !important;
+                background: white !important;
             }
 
             #print-wrapper {
                 width: max-content !important;
                 max-width: none !important;
+                margin: 0 auto !important;
+                /* 確保縮放時以中心點為基準 */
+                transform-origin: center center !important;
             }
 
             #chart-title {
                 border: none !important;
                 background: transparent !important;
+                pointer-events: none !important;
             }
         }
 
@@ -122,7 +131,6 @@
                 </button>
             </div>
 
-            <!-- 座位表列表容器 -->
             <div id="plans-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <!-- JS 動態產生 -->
             </div>
@@ -197,7 +205,7 @@
 
             <!-- 右側：座位表平面圖 -->
             <section class="flex-1 bg-white rounded-lg shadow-sm p-8 print-area flex flex-col overflow-y-auto relative w-full">
-                <div id="print-wrapper" class="flex flex-col items-center w-full origin-top transition-transform duration-300">
+                <div id="print-wrapper" class="flex flex-col items-center w-full transition-transform duration-300">
                     <!-- 標題 -->
                     <div class="text-center mb-8 flex flex-col items-center w-full">
                         <input type="text" id="chart-title" value="自訂座位表" class="text-3xl font-bold text-gray-800 mb-4 text-center border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 outline-none bg-transparent transition-colors w-full max-w-lg">
@@ -242,7 +250,7 @@
 
         // 全域變數
         let currentUser = null;
-        let currentPlanId = null; // 目前正在編輯的座位表 ID
+        let currentPlanId = null; 
         
         let students = [];
         let config = { title: "新增座位表", rows: 6, cols: 5, columnGaps: [16, 16, 16, 16] };
@@ -284,7 +292,6 @@
                 document.getElementById('user-name').textContent = user.displayName || user.email;
                 document.getElementById('user-avatar').src = user.photoURL || defaultAvatar;
                 
-                // 載入學生名單 (只需載入一次)
                 if (students.length === 0) loadStudentsFromFirebase();
                 
                 if (currentPlanId) {
@@ -312,7 +319,6 @@
             container.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500">載入中...</div>';
             
             try {
-                // 抓取所有座位表，依建立時間排序
                 const q = query(collection(db, "seating_plans"), orderBy("createdAt", "desc"));
                 const snapshot = await getDocs(q);
                 
@@ -778,23 +784,29 @@
         window.handleDragOver = handleDragOver;
         window.handleDropOnSidebar = handleDropOnSidebar;
 
-        // 列印縮放邏輯
+        // ==================== 列印縮放邏輯 (強制單頁置中) ====================
         function applyPrintScale() {
             const wrapper = document.getElementById('print-wrapper');
+            // 先重置縮放，取得最原始的實際寬高
             wrapper.style.transform = 'none';
             void wrapper.offsetWidth; 
             
-            const rect = wrapper.getBoundingClientRect();
-            const availableWidth = 1050; 
-            const availableHeight = 720; 
+            const width = wrapper.offsetWidth;
+            const height = wrapper.offsetHeight;
             
-            const scaleX = availableWidth / rect.width;
-            const scaleY = availableHeight / rect.height;
-            const scale = Math.min(scaleX, scaleY, 1); 
+            // A4 橫式紙張的「安全可用範圍」 (以 96 DPI 估算，約 1123x794)
+            // 這裡設定 1080x750 來保留一點邊距，避免觸發第二頁
+            const availableWidth = 1080; 
+            const availableHeight = 750; 
             
-            if (scale < 1) {
-                wrapper.style.transform = `scale(${scale})`;
-            }
+            // 計算寬與高的縮放比例，取最小值以確保完全放入一頁中 (無論放大或縮小)
+            const scaleX = availableWidth / width;
+            const scaleY = availableHeight / height;
+            const scale = Math.min(scaleX, scaleY); 
+            
+            // 套用縮放，並將變形原點設為正中心
+            wrapper.style.transform = `scale(${scale})`;
+            wrapper.style.transformOrigin = 'center center';
         }
 
         function removePrintScale() {
