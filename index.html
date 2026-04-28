@@ -102,7 +102,7 @@
             <p class="text-gray-500 mb-8">請使用學校 Google 帳號登入以管理座位表</p>
             <button onclick="window.handleLogin()" class="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 text-gray-700 font-semibold py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors">
                 <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-5 h-5" alt="Google">
-                使用 Google 登入
+                使用學校 Google 帳號登入
             </button>
         </div>
     </div>
@@ -276,7 +276,12 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        
+        // 【修改點 1】設定 Google 登入預設網域
         const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({
+            hd: "ndc.edu.hk" // 強制 Google 登入畫面優先顯示此網域
+        });
 
         // 全域變數
         let currentUser = null;
@@ -318,6 +323,13 @@
         // ==================== 認證 (Auth) ====================
         onAuthStateChanged(auth, (user) => {
             if (user) {
+                // 【修改點 2】雙重驗證：檢查登入的 email 是否為學校網域
+                if (!user.email.endsWith('@ndc.edu.hk')) {
+                    alert('抱歉，只限使用學校帳號 (@ndc.edu.hk) 登入！');
+                    signOut(auth); // 強制登出
+                    return;
+                }
+
                 currentUser = user;
                 document.getElementById('user-name').textContent = user.displayName || user.email;
                 document.getElementById('user-avatar').src = user.photoURL || defaultAvatar;
