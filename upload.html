@@ -6,7 +6,6 @@
     <title>學生座位表 - 相片批次上傳與管理系統</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* 自訂捲軸樣式 */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -15,96 +14,119 @@
 </head>
 <body class="bg-gray-100 font-sans min-h-screen">
 
-    <!-- 頂部導覽列 -->
-    <nav class="bg-blue-600 text-white shadow-md">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <div class="flex items-center">
-                    <svg class="w-8 h-8 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                    <span class="font-bold text-xl">學生相片管理系統</span>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <button id="tab-upload" class="px-3 py-2 rounded-md text-sm font-medium bg-blue-700 hover:bg-blue-800 transition">批次上傳</button>
-                    <button id="tab-manage" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition">瀏覽與管理</button>
-                </div>
-            </div>
-        </div>
-    </nav>
-
-    <!-- 主要內容區 -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        <!-- 區塊 1：批次上傳區 -->
-        <div id="section-upload" class="bg-white rounded-xl shadow-lg p-6">
-            <h2 class="text-2xl font-bold text-gray-800 mb-4">批次上傳學生相片</h2>
-            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 text-sm text-blue-800">
-                <p class="font-bold mb-1">💡 檔名命名規則：</p>
-                <p>請將相片命名為 <strong>[班級2碼][學號2碼][姓名]</strong> (例如：<code class="bg-white px-1 rounded">1A01陳曉.jpg</code> 或 <code class="bg-white px-1 rounded">2B15歐陽大文.png</code>)。系統會自動擷取前兩碼為班級、接著兩碼為學號，其餘為姓名。</p>
-            </div>
-
-            <div class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-10 bg-gray-50 hover:bg-gray-100 transition relative">
-                <input type="file" id="file-input" multiple accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                <svg class="w-12 h-12 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+    <!-- 登入畫面 -->
+    <div id="login-screen" class="min-h-screen flex items-center justify-center bg-gray-100 absolute inset-0 z-50">
+        <div class="bg-white p-8 rounded-xl shadow-lg max-w-md w-full text-center">
+            <div class="mb-6 flex justify-center">
+                <svg class="w-16 h-16 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
-                <p class="text-gray-600 font-medium">點擊此處選擇多張相片，或將相片拖曳至此</p>
-                <p class="text-xs text-gray-400 mt-2">支援 JPG, PNG (會自動壓縮為 150x150)</p>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">學生相片管理系統</h2>
+            <p class="text-gray-600 mb-8">請使用學校 Google 帳號登入以進行管理</p>
+            <button id="login-btn" class="w-full flex items-center justify-center bg-white border border-gray-300 text-gray-700 font-semibold py-3 px-4 rounded-lg hover:bg-gray-50 transition shadow-sm">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google Logo" class="w-5 h-5 mr-3">
+                使用 Google 帳號登入
+            </button>
+            <p id="login-error" class="text-red-500 text-sm mt-4 hidden"></p>
+        </div>
+    </div>
+
+    <!-- 主要應用程式 (預設隱藏，登入後顯示) -->
+    <div id="main-app" class="hidden">
+        <!-- 頂部導覽列 -->
+        <nav class="bg-blue-600 text-white shadow-md">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <svg class="w-8 h-8 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        <span class="font-bold text-xl">學生相片管理系統</span>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button id="tab-upload" class="px-3 py-2 rounded-md text-sm font-medium bg-blue-700 hover:bg-blue-800 transition">批次上傳</button>
+                        <button id="tab-manage" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition">瀏覽與管理</button>
+                        <div class="border-l border-blue-400 h-6 mx-2"></div>
+                        <span id="user-email" class="text-sm font-medium text-blue-100"></span>
+                        <button id="logout-btn" class="px-3 py-2 rounded-md text-sm font-medium hover:bg-red-500 transition text-white">登出</button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主要內容區 -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            
+            <!-- 區塊 1：批次上傳區 -->
+            <div id="section-upload" class="bg-white rounded-xl shadow-lg p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">批次上傳學生相片</h2>
+                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 text-sm text-blue-800">
+                    <p class="font-bold mb-1">💡 檔名命名規則：</p>
+                    <p>請將相片命名為 <strong>[班級2碼][學號2碼][姓名]</strong> (例如：<code class="bg-white px-1 rounded">1A01陳曉.jpg</code> 或 <code class="bg-white px-1 rounded">2B15歐陽大文.png</code>)。系統會自動擷取前兩碼為班級、接著兩碼為學號，其餘為姓名。</p>
+                </div>
+
+                <div class="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-10 bg-gray-50 hover:bg-gray-100 transition relative">
+                    <input type="file" id="file-input" multiple accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                    <svg class="w-12 h-12 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    <p class="text-gray-600 font-medium">點擊此處選擇多張相片，或將相片拖曳至此</p>
+                    <p class="text-xs text-gray-400 mt-2">支援 JPG, PNG (會自動壓縮為 150x150)</p>
+                </div>
+
+                <!-- 預覽列表 -->
+                <div id="preview-section" class="mt-8 hidden">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-gray-700">準備上傳清單 (<span id="preview-count">0</span>)</h3>
+                        <button id="start-upload-btn" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow transition">
+                            開始寫入 Firestore
+                        </button>
+                    </div>
+                    
+                    <!-- 進度條 -->
+                    <div id="upload-progress-container" class="w-full bg-gray-200 rounded-full h-4 mb-4 hidden">
+                        <div id="upload-progress-bar" class="bg-green-600 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                    <p id="upload-status" class="text-sm text-gray-600 mb-4 hidden">上傳中...</p>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full bg-white border border-gray-200 rounded-lg">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">相片預覽</th>
+                                    <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">班級</th>
+                                    <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">學號</th>
+                                    <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">姓名</th>
+                                    <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">狀態</th>
+                                </tr>
+                            </thead>
+                            <tbody id="preview-tbody" class="divide-y divide-gray-200">
+                                <!-- 預覽項目會由 JS 動態生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
 
-            <!-- 預覽列表 -->
-            <div id="preview-section" class="mt-8 hidden">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-bold text-gray-700">準備上傳清單 (<span id="preview-count">0</span>)</h3>
-                    <button id="start-upload-btn" class="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow transition">
-                        開始寫入 Firestore
+            <!-- 區塊 2：瀏覽與管理區 -->
+            <div id="section-manage" class="bg-white rounded-xl shadow-lg p-6 hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">學生資料庫</h2>
+                    <button id="refresh-btn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium flex items-center transition">
+                        <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                        重新整理
                     </button>
                 </div>
-                
-                <!-- 進度條 -->
-                <div id="upload-progress-container" class="w-full bg-gray-200 rounded-full h-4 mb-4 hidden">
-                    <div id="upload-progress-bar" class="bg-green-600 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
-                </div>
-                <p id="upload-status" class="text-sm text-gray-600 mb-4 hidden">上傳中...</p>
 
-                <div class="overflow-x-auto">
-                    <table class="min-w-full bg-white border border-gray-200 rounded-lg">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">相片預覽</th>
-                                <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">班級</th>
-                                <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">學號</th>
-                                <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">姓名</th>
-                                <th class="py-3 px-4 border-b text-left text-xs font-semibold text-gray-600 uppercase">狀態</th>
-                            </tr>
-                        </thead>
-                        <tbody id="preview-tbody" class="divide-y divide-gray-200">
-                            <!-- 預覽項目會由 JS 動態生成 -->
-                        </tbody>
-                    </table>
+                <!-- 學生卡片網格 -->
+                <div id="students-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                    <div class="col-span-full text-center py-10 text-gray-500" id="loading-text">載入中...</div>
                 </div>
             </div>
-        </div>
 
-        <!-- 區塊 2：瀏覽與管理區 -->
-        <div id="section-manage" class="bg-white rounded-xl shadow-lg p-6 hidden">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">學生資料庫</h2>
-                <button id="refresh-btn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium flex items-center transition">
-                    <svg class="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    重新整理
-                </button>
-            </div>
-
-            <!-- 學生卡片網格 -->
-            <div id="students-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                <!-- 卡片由 JS 動態生成 -->
-                <div class="col-span-full text-center py-10 text-gray-500" id="loading-text">載入中...</div>
-            </div>
-        </div>
-
-    </main>
+        </main>
+    </div>
 
     <!-- 編輯學生 Modal -->
     <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
@@ -133,6 +155,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
         import { getFirestore, doc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
 
         // 您的 Firebase 設定
         const firebaseConfig = {
@@ -146,6 +169,57 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+        
+        // 提示 Google 登入畫面優先選擇該網域的帳號
+        provider.setCustomParameters({ hd: 'ndc.edu.hk' });
+
+        // --- 登入與權限管理 ---
+        const loginScreen = document.getElementById('login-screen');
+        const mainApp = document.getElementById('main-app');
+        const loginBtn = document.getElementById('login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const loginError = document.getElementById('login-error');
+        const userEmailDisplay = document.getElementById('user-email');
+
+        // 監聽登入狀態
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // 檢查是否為學校信箱
+                if (user.email.endsWith('@ndc.edu.hk')) {
+                    loginScreen.classList.add('hidden');
+                    mainApp.classList.remove('hidden');
+                    userEmailDisplay.textContent = user.email;
+                } else {
+                    // 若非學校信箱，強制登出並顯示錯誤
+                    signOut(auth).then(() => {
+                        loginError.textContent = '權限不足：請使用 @ndc.edu.hk 學校信箱登入！';
+                        loginError.classList.remove('hidden');
+                    });
+                }
+            } else {
+                loginScreen.classList.remove('hidden');
+                mainApp.classList.add('hidden');
+            }
+        });
+
+        // 登入按鈕
+        loginBtn.addEventListener('click', async () => {
+            loginError.classList.add('hidden');
+            try {
+                await signInWithPopup(auth, provider);
+            } catch (error) {
+                console.error("登入錯誤:", error);
+                loginError.textContent = '登入失敗，請再試一次。';
+                loginError.classList.remove('hidden');
+            }
+        });
+
+        // 登出按鈕
+        logoutBtn.addEventListener('click', () => {
+            signOut(auth);
+        });
 
         // --- UI 切換邏輯 ---
         const tabUpload = document.getElementById('tab-upload');
@@ -165,7 +239,7 @@
             secManage.classList.remove('hidden');
             tabManage.classList.add('bg-blue-700');
             tabUpload.classList.remove('bg-blue-700');
-            loadStudents(); // 切換時自動載入資料
+            loadStudents(); 
         });
 
         // --- 批次上傳邏輯 ---
@@ -175,27 +249,20 @@
         const previewCount = document.getElementById('preview-count');
         const startUploadBtn = document.getElementById('start-upload-btn');
         
-        let pendingUploads = []; // 存放準備上傳的資料
+        let pendingUploads = [];
 
-        // 🌟 更新後的解析檔名邏輯 (固定位置切割)
         function parseFilename(filename) {
-            // 去除副檔名 (例如 .jpg, .png)
             const nameWithoutExt = filename.substring(0, filename.lastIndexOf('.')) || filename;
-            
-            // 確保檔名長度至少有 5 個字元 (2碼班級 + 2碼學號 + 至少1個字的姓名)
             if (nameWithoutExt.length >= 5) {
                 return {
-                    className: nameWithoutExt.substring(0, 2), // 擷取第 1~2 個字元 (班級)
-                    studentNum: nameWithoutExt.substring(2, 4), // 擷取第 3~4 個字元 (學號)
-                    name: nameWithoutExt.substring(4).trim()    // 擷取第 5 個字元到最後 (姓名)，並去除可能的多餘空白
+                    className: nameWithoutExt.substring(0, 2).toUpperCase(), 
+                    studentNum: nameWithoutExt.substring(2, 4), 
+                    name: nameWithoutExt.substring(4).trim()
                 };
             }
-            
-            // 如果檔名太短不符合規則，回傳備用方案
             return { className: '未知', studentNum: '00', name: nameWithoutExt };
         }
 
-        // 壓縮圖片並轉為 Base64 (回傳 Promise)
         function processImage(file) {
             return new Promise((resolve) => {
                 const reader = new FileReader();
@@ -232,7 +299,6 @@
             });
         }
 
-        // 選擇檔案後的處理
         fileInput.addEventListener('change', async (e) => {
             const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
             if (files.length === 0) return;
@@ -250,7 +316,7 @@
                 const base64 = await processImage(file);
                 
                 results.push({
-                    id: parsed.name, // 使用姓名作為唯一 ID
+                    id: parsed.name,
                     className: parsed.className,
                     studentNum: parsed.studentNum,
                     name: parsed.name,
@@ -279,7 +345,6 @@
             });
         }
 
-        // 執行批次上傳至 Firestore
         startUploadBtn.addEventListener('click', async () => {
             if (pendingUploads.length === 0) return;
 
@@ -302,7 +367,6 @@
                 try {
                     statusCell.innerHTML = '<span class="text-blue-500 animate-pulse">寫入中...</span>';
                     
-                    // 使用姓名做為 Document ID。使用 { merge: true } 確保如果該學生已存在，只更新資料而不會刪除其他潛在欄位
                     const docRef = doc(db, "students", student.id);
                     await setDoc(docRef, {
                         className: student.className,
@@ -315,19 +379,16 @@
                     statusCell.innerHTML = '<span class="text-green-600 font-bold">✓ 成功</span>';
                     successCount++;
                 } catch (error) {
-                    console.error(error);
-                    statusCell.innerHTML = `<span class="text-red-600">✗ 失敗</span>`;
+                    console.error("寫入失敗:", error);
+                    statusCell.innerHTML = `<span class="text-red-600">✗ 失敗 (權限不足或網路錯誤)</span>`;
                 }
 
-                // 更新進度條
                 const percent = Math.round(((i + 1) / pendingUploads.length) * 100);
                 progressBar.style.width = `${percent}%`;
                 statusText.textContent = `上傳進度: ${i + 1} / ${pendingUploads.length} (${percent}%)`;
             }
 
             statusText.innerHTML = `<span class="text-green-600 font-bold">上傳完成！共成功寫入 ${successCount} 筆資料。</span>`;
-            
-            // 上傳完畢後，清空 input 以便下次選擇
             fileInput.value = '';
         });
 
@@ -346,7 +407,6 @@
                     return;
                 }
 
-                // 將資料轉為陣列並按班級、學號排序
                 const studentsList = [];
                 querySnapshot.forEach((doc) => {
                     studentsList.push({ id: doc.id, ...doc.data() });
@@ -386,7 +446,7 @@
 
         refreshBtn.addEventListener('click', loadStudents);
 
-        // --- 編輯與刪除功能 (暴露到全域以便 inline onclick 使用) ---
+        // --- 編輯與刪除功能 ---
         const editModal = document.getElementById('edit-modal');
         const editDocId = document.getElementById('edit-doc-id');
         const editClass = document.getElementById('edit-class');
@@ -413,12 +473,12 @@
 
             try {
                 await setDoc(doc(db, "students", id), {
-                    className: editClass.value,
+                    className: editClass.value.toUpperCase(),
                     studentNum: editNum.value
                 }, { merge: true });
                 
                 editModal.classList.add('hidden');
-                loadStudents(); // 重新載入畫面
+                loadStudents();
             } catch (error) {
                 alert('更新失敗: ' + error.message);
             } finally {
@@ -431,13 +491,12 @@
             if (confirm(`確定要刪除學生 ${id} 的資料嗎？此動作無法復原。`)) {
                 try {
                     await deleteDoc(doc(db, "students", id));
-                    loadStudents(); // 重新載入畫面
+                    loadStudents();
                 } catch (error) {
                     alert('刪除失敗: ' + error.message);
                 }
             }
         };
-
     </script>
 </body>
 </html>
