@@ -152,7 +152,6 @@
                 <span id="sync-status" class="ml-4 text-sm text-gray-400">連線中...</span>
             </div>
             <div class="flex items-center space-x-4">
-                <!-- 新增：隨機抽籤按鈕 -->
                 <button onclick="window.openRandomPicker()" class="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md transition-colors shadow-sm">
                     <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
                     <span>隨機抽籤</span>
@@ -257,10 +256,48 @@
         </div>
     </div>
 
+    <!-- ==================== 分享設定 Modal ==================== -->
+    <div id="share-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 z-50 hidden flex items-center justify-center print-hidden backdrop-blur-sm">
+        <div class="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl transform transition-all">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-green-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                    分享座位表
+                </h2>
+                <button onclick="window.closeShareModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <!-- 隱藏欄位：儲存當前正在操作的座位表 ID -->
+            <input type="hidden" id="share-plan-id">
+            
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2">同事的學校電郵</label>
+                <input type="email" id="share-email" placeholder="example@ndc.edu.hk" 
+                       class="shadow-sm appearance-none border border-gray-300 rounded-lg w-full py-2.5 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            </div>
+            
+            <div class="mb-6">
+                <label class="block text-gray-700 text-sm font-bold mb-2">權限設定</label>
+                <select id="share-role" class="shadow-sm border border-gray-300 rounded-lg w-full py-2.5 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="edit">可編輯 (Edit)</option>
+                    <option value="view">唯讀 (View Only)</option>
+                </select>
+            </div>
+            
+            <div class="flex justify-end space-x-3">
+                <button onclick="window.closeShareModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium">取消</button>
+                <button onclick="window.submitShare()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium shadow-sm">確認分享</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
+        // 【新增引入】 updateDoc 與 arrayUnion 用於更新分享名單
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, query, orderBy, serverTimestamp, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
         // Firebase 設定
         const firebaseConfig = {
@@ -277,10 +314,9 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
         
-        // 【修改點 1】設定 Google 登入預設網域
         const provider = new GoogleAuthProvider();
         provider.setCustomParameters({
-            hd: "ndc.edu.hk" // 強制 Google 登入畫面優先顯示此網域
+            hd: "ndc.edu.hk" 
         });
 
         // 全域變數
@@ -323,10 +359,9 @@
         // ==================== 認證 (Auth) ====================
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                // 【修改點 2】雙重驗證：檢查登入的 email 是否為學校網域
                 if (!user.email.endsWith('@ndc.edu.hk')) {
                     alert('抱歉，只限使用學校帳號 (@ndc.edu.hk) 登入！');
-                    signOut(auth); // 強制登出
+                    signOut(auth); 
                     return;
                 }
 
@@ -380,6 +415,7 @@
                     const card = document.createElement('div');
                     card.className = "bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow flex flex-col";
                     
+                    // 【修改點】在按鈕區域加入分享按鈕
                     card.innerHTML = `
                         <div class="flex-1">
                             <h3 class="text-lg font-bold text-gray-800 mb-1 truncate">${data.config?.title || '未命名座位表'}</h3>
@@ -390,6 +426,11 @@
                         </div>
                         <div class="flex gap-2 mt-4 pt-4 border-t border-gray-50">
                             <button onclick="window.openPlan('${doc.id}')" class="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium py-2 rounded-lg transition-colors text-sm">開啟編輯</button>
+                            
+                            <button onclick="window.openShareModal('${doc.id}')" class="px-3 bg-green-50 hover:bg-green-100 text-green-600 rounded-lg transition-colors text-sm" title="分享">
+                                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                            </button>
+                            
                             ${isOwner ? `<button onclick="window.deletePlan('${doc.id}')" class="px-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors text-sm" title="刪除"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>` : ''}
                         </div>
                     `;
@@ -446,6 +487,52 @@
             currentPlanId = null;
             showView('dashboard');
             loadDashboardPlans();
+        };
+
+        // ==================== 分享功能邏輯 (Share) ====================
+        
+        window.openShareModal = (planId) => {
+            document.getElementById('share-plan-id').value = planId;
+            document.getElementById('share-email').value = '';
+            document.getElementById('share-role').value = 'edit';
+            document.getElementById('share-modal').classList.remove('hidden');
+        };
+
+        window.closeShareModal = () => {
+            document.getElementById('share-modal').classList.add('hidden');
+        };
+
+        window.submitShare = async () => {
+            const planId = document.getElementById('share-plan-id').value;
+            const email = document.getElementById('share-email').value.trim();
+            const role = document.getElementById('share-role').value;
+
+            if (!email || !email.endsWith('@ndc.edu.hk')) {
+                alert('請輸入有效的學校電郵 (@ndc.edu.hk)');
+                return;
+            }
+
+            try {
+                const planRef = doc(db, 'seating_plans', planId);
+                
+                // 使用 Firebase v10 的 updateDoc 與 arrayUnion 寫入資料庫
+                if (role === 'edit') {
+                    await updateDoc(planRef, {
+                        editors: arrayUnion(email)
+                    });
+                } else {
+                    await updateDoc(planRef, {
+                        viewers: arrayUnion(email)
+                    });
+                }
+
+                alert(`已成功將座位表分享給 ${email} (${role === 'edit' ? '可編輯' : '唯讀'})`);
+                window.closeShareModal();
+                
+            } catch (error) {
+                console.error("分享失敗: ", error);
+                alert("分享失敗！請確定您是該座位表的建立者，或您擁有分享權限。");
+            }
         };
 
         // ==================== 編輯器邏輯 (Editor) ====================
@@ -857,7 +944,6 @@
         let pickerInterval = null;
 
         window.openRandomPicker = () => {
-            // 找出已經排在座位上的學生
             const assignedStudents = seats
                 .filter(s => s.studentId)
                 .map(s => students.find(st => st.id === s.studentId))
@@ -871,7 +957,6 @@
             const modal = document.getElementById('random-picker-modal');
             const content = document.getElementById('random-picker-content');
             
-            // 初始化畫面
             document.getElementById('picker-avatar').classList.add('hidden');
             document.getElementById('picker-placeholder').classList.remove('hidden');
             document.getElementById('picker-name').textContent = "準備抽籤";
@@ -883,7 +968,6 @@
             btn.disabled = false;
             
             modal.classList.remove('hidden');
-            // 觸發重繪以產生動畫
             void modal.offsetWidth;
             content.classList.remove('scale-95', 'opacity-0');
             content.classList.add('scale-100', 'opacity-100');
@@ -920,19 +1004,17 @@
             const avatarEl = document.getElementById('picker-avatar');
             const placeholderEl = document.getElementById('picker-placeholder');
             
-            // 隱藏大頭貼，顯示問號
             avatarEl.classList.add('hidden');
             placeholderEl.classList.remove('hidden');
             nameEl.classList.remove('scale-110', 'text-pink-600');
             
             let counter = 0;
-            const duration = 2000; // 動畫持續時間 (毫秒)
-            const intervalTime = 60; // 每次跳動間隔 (毫秒)
+            const duration = 2000; 
+            const intervalTime = 60; 
             const totalSteps = duration / intervalTime;
             
             if (pickerInterval) clearInterval(pickerInterval);
             
-            // 開始快速輪播
             pickerInterval = setInterval(() => {
                 const randomStudent = assignedStudents[Math.floor(Math.random() * assignedStudents.length)];
                 nameEl.textContent = randomStudent.name;
@@ -941,7 +1023,6 @@
                 if (counter >= totalSteps) {
                     clearInterval(pickerInterval);
                     
-                    // 最終抽出的學生
                     const finalStudent = assignedStudents[Math.floor(Math.random() * assignedStudents.length)];
                     nameEl.textContent = finalStudent.name;
                     
@@ -952,7 +1033,6 @@
                     avatarEl.classList.remove('hidden');
                     placeholderEl.classList.add('hidden');
                     
-                    // 加上強調的特效
                     nameEl.classList.add('scale-110', 'text-pink-600');
                     
                     btn.textContent = "再抽一次";
