@@ -14,31 +14,35 @@
             }
             
             html, body { 
-                -webkit-print-color-adjust: exact !important; 
-                print-color-adjust: exact !important; 
-                background: white !important; 
-                margin: 0 !important;
-                padding: 0 !important;
                 width: 100% !important;
                 height: 100% !important;
-                overflow: visible !important; /* 修正：不可設為 hidden，否則容易空白 */
+                margin: 0 !important;
+                padding: 0 !important;
+                background: white !important;
+                -webkit-print-color-adjust: exact !important; 
+                print-color-adjust: exact !important; 
+                overflow: hidden !important; /* 防止產生多餘的空白頁 */
             }
             
             .print-hidden { display: none !important; }
             
             #editor-view, main {
                 display: block !important;
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
                 width: 100% !important;
-                height: auto !important;
+                height: 100% !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                overflow: visible !important;
             }
             
             .print-area { 
-                position: relative !important; /* 修正：移除 absolute */
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
                 width: 100% !important; 
-                height: 100vh !important; /* 強制佔滿一頁 */
+                height: 100% !important; 
                 display: flex !important;
                 flex-direction: column !important;
                 align-items: center !important;
@@ -47,15 +51,15 @@
                 padding: 0 !important;
                 box-shadow: none !important; 
                 border: none !important;
-                overflow: visible !important;
                 background: white !important;
+                overflow: hidden !important;
             }
 
             #print-wrapper {
                 width: max-content !important;
                 max-width: none !important;
                 margin: 0 auto !important;
-                /* transform-origin 改由 JS 動態控制 */
+                /* transform 與 margin-top 會由 JS 動態計算注入 */
             }
 
             #chart-title {
@@ -1059,36 +1063,40 @@
         window.handleDragOver = handleDragOver;
         window.handleDropOnSidebar = handleDropOnSidebar;
 
-        // ==================== 列印縮放邏輯 (已修正) ====================
+        // ==================== 列印縮放邏輯 (已修正：允許放大與置中) ====================
         function applyPrintScale() {
             const wrapper = document.getElementById('print-wrapper');
+            
+            // 1. 重置樣式以取得原始尺寸
             wrapper.style.transform = 'none';
             wrapper.style.marginTop = '0px';
-            void wrapper.offsetWidth; 
+            void wrapper.offsetWidth; // 強制瀏覽器重新計算佈局
             
-            // 使用 scrollWidth 避免被隱藏或裁切時計算為 0
             const width = wrapper.scrollWidth;
             const height = wrapper.scrollHeight;
             
-            // A4 橫向安全列印範圍 (大約值)
-            const availableWidth = 1050; 
-            const availableHeight = 720; 
+            // 2. A4 橫向最大安全範圍 (像素，約 1122 x 794，這裡預留一點安全邊距)
+            const availableWidth = 1100; 
+            const availableHeight = 760; 
             
-            let scale = 1;
             if (width > 0 && height > 0) {
                 const scaleX = availableWidth / width;
                 const scaleY = availableHeight / height;
-                scale = Math.min(scaleX, scaleY, 1); // 只縮小，不放大
-            }
-            
-            wrapper.style.transform = `scale(${scale})`;
-            wrapper.style.transformOrigin = 'top center'; // 改為從頂部置中縮放，避免被切掉
-            
-            // 如果縮放後高度較小，稍微往下推一點達到垂直置中效果
-            const scaledHeight = height * scale;
-            if (scaledHeight < availableHeight) {
-                const marginTop = (availableHeight - scaledHeight) / 2;
-                wrapper.style.marginTop = `${marginTop}px`;
+                
+                // 3. 允許放大與縮小！移除原本 Math.min(..., 1) 的限制
+                // 這樣如果座位表很小，它就會自動放大填滿 A4
+                const scale = Math.min(scaleX, scaleY); 
+                
+                // 4. 套用縮放
+                wrapper.style.transform = `scale(${scale})`;
+                wrapper.style.transformOrigin = 'top center'; 
+                
+                // 5. 計算垂直置中 (Margin Top)
+                const scaledHeight = height * scale;
+                const marginTop = Math.max(0, (availableHeight - scaledHeight) / 2);
+                
+                // 加上 15px 的微小頂部邊距，避免太貼齊紙張上緣
+                wrapper.style.marginTop = `${marginTop + 15}px`; 
             }
         }
 
