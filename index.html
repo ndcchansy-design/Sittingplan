@@ -19,36 +19,35 @@
                 background: white !important; 
                 margin: 0 !important;
                 padding: 0 !important;
-                width: 100vw !important;
-                height: 100vh !important;
-                overflow: hidden !important; 
+                width: 100% !important;
+                height: 100% !important;
+                overflow: visible !important; /* 修正：不可設為 hidden，否則容易空白 */
             }
             
             .print-hidden { display: none !important; }
             
-            #editor-view {
+            #editor-view, main {
                 display: block !important;
-                width: 100vw !important;
-                height: 100vh !important;
+                width: 100% !important;
+                height: auto !important;
                 margin: 0 !important;
                 padding: 0 !important;
+                overflow: visible !important;
             }
             
             .print-area { 
-                position: absolute !important;
-                top: 0 !important;
-                left: 0 !important;
-                width: 100vw !important; 
-                height: 100vh !important; 
+                position: relative !important; /* 修正：移除 absolute */
+                width: 100% !important; 
+                height: 100vh !important; /* 強制佔滿一頁 */
                 display: flex !important;
                 flex-direction: column !important;
                 align-items: center !important;
-                justify-content: center !important;
+                justify-content: flex-start !important;
                 margin: 0 !important; 
                 padding: 0 !important;
                 box-shadow: none !important; 
                 border: none !important;
-                overflow: hidden !important;
+                overflow: visible !important;
                 background: white !important;
             }
 
@@ -56,7 +55,7 @@
                 width: max-content !important;
                 max-width: none !important;
                 margin: 0 auto !important;
-                transform-origin: center center !important;
+                /* transform-origin 改由 JS 動態控制 */
             }
 
             #chart-title {
@@ -358,7 +357,7 @@
         let draggedStudentId = null;
         let dragSource = null;
 
-        // 【新增】點擊分配模式狀態
+        // 點擊分配模式狀態
         let selectedStudentForClickId = null;
         let searchQuery = "";
 
@@ -435,12 +434,11 @@
             container.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500">載入中...</div>';
             
             try {
-                // 抓取所有座位表
                 const q = query(collection(db, "seating_plans"), orderBy("createdAt", "desc"));
                 const snapshot = await getDocs(q);
                 
                 container.innerHTML = '';
-                let hasVisiblePlans = false; // 紀錄是否有該使用者可見的座位表
+                let hasVisiblePlans = false; 
                 
                 if (snapshot.empty) {
                     container.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500 bg-white rounded-lg border border-dashed border-gray-300">目前沒有任何座位表，點擊右上角建立！</div>';
@@ -451,22 +449,19 @@
                     const data = doc.data();
                     const userEmail = currentUser.email;
                     
-                    // --- 權限判斷邏輯 ---
                     const isOwner = data.userId === currentUser.uid;
                     const isEditor = data.editors && data.editors.includes(userEmail);
                     const isViewer = data.viewers && data.viewers.includes(userEmail);
 
-                    // 如果「不是建立者」且「不在編輯名單」且「不在檢視名單」，就跳過不顯示 (C 同事會在這裡被過濾掉)
                     if (!isOwner && !isEditor && !isViewer) {
                         return; 
                     }
 
-                    hasVisiblePlans = true; // 標記有可見的座位表
+                    hasVisiblePlans = true; 
 
                     const dateStr = data.createdAt ? new Date(data.createdAt.toDate()).toLocaleDateString('zh-TW') : '未知時間';
                     const authorName = data.authorName || data.userEmail || '未知建立者';
 
-                    // 根據權限決定按鈕顯示與文字
                     const canEdit = isOwner || isEditor;
                     const openBtnText = canEdit ? '開啟編輯' : '唯讀檢視';
                     const openBtnClass = canEdit ? 'bg-blue-50 hover:bg-blue-100 text-blue-700' : 'bg-gray-100 hover:bg-gray-200 text-gray-700';
@@ -499,7 +494,6 @@
                     container.appendChild(card);
                 });
 
-                // 如果過濾後沒有任何座位表可以顯示
                 if (!hasVisiblePlans) {
                     container.innerHTML = '<div class="col-span-full text-center py-10 text-gray-500 bg-white rounded-lg border border-dashed border-gray-300">您目前沒有建立或被分享任何座位表。</div>';
                 }
@@ -547,7 +541,7 @@
 
         window.openPlan = (planId) => {
             currentPlanId = planId;
-            window.cancelClickAssign(); // 重置點擊狀態
+            window.cancelClickAssign(); 
             searchInput.value = '';
             searchQuery = '';
             showView('editor');
@@ -560,7 +554,7 @@
             loadDashboardPlans();
         };
 
-        // ==================== 分享功能邏輯 (Share) ====================
+        // ==================== 分享功能邏輯 ====================
         window.openShareModal = (planId) => {
             document.getElementById('share-plan-id').value = planId;
             document.getElementById('share-email').value = '';
@@ -600,7 +594,7 @@
             }
         };
 
-        // ==================== 編輯器邏輯 (Editor) ====================
+        // ==================== 編輯器邏輯 ====================
         async function loadStudentsFromFirebase() {
             try {
                 const querySnapshot = await getDocs(collection(db, "students"));
@@ -799,24 +793,20 @@
         // ==================== 點擊分配模式邏輯 ====================
         window.handleStudentClick = (studentId) => {
             if (selectedStudentForClickId === studentId) {
-                // 取消選取
                 selectedStudentForClickId = null;
             } else {
-                // 選取新學生
                 selectedStudentForClickId = studentId;
             }
             render();
         };
 
         window.handleSeatClick = (seatId) => {
-            // 如果沒有選取學生，就不做任何事
             if (!selectedStudentForClickId) return;
 
             const targetSeatIndex = seats.findIndex(s => s.id === seatId);
             if (targetSeatIndex !== -1) {
-                // 將選取的學生放入該座位 (如果原本有學生，會被替換回左側名單)
                 seats[targetSeatIndex].studentId = selectedStudentForClickId;
-                selectedStudentForClickId = null; // 放置後自動取消選取
+                selectedStudentForClickId = null; 
                 render();
                 saveData();
             }
@@ -827,7 +817,6 @@
             render();
         };
 
-        // 監聽 ESC 鍵取消選取
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && selectedStudentForClickId) {
                 window.cancelClickAssign();
@@ -856,7 +845,6 @@
                 student => !seats.some(seat => seat.studentId === student.id)
             );
 
-            // 應用搜尋過濾
             if (searchQuery) {
                 unassignedStudents = unassignedStudents.filter(s => {
                     const nameMatch = s.name && s.name.toLowerCase().includes(searchQuery);
@@ -883,7 +871,6 @@
             const sortedClassNames = Object.keys(grouped).sort((a, b) => {
                 const isAExpanded = expandedClasses.has(a);
                 const isBExpanded = expandedClasses.has(b);
-                // 如果有搜尋，預設展開所有班級
                 if (searchQuery) return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
                 
                 if (isAExpanded && !isBExpanded) return -1;
@@ -893,14 +880,13 @@
 
             for (const className of sortedClassNames) {
                 const classStudents = grouped[className];
-                // 如果有搜尋字串，強制展開
                 const isExpanded = expandedClasses.has(className) || searchQuery !== "";
                 
                 const groupHeader = document.createElement('div');
                 groupHeader.className = "flex items-center justify-between bg-blue-50 px-3 py-2 rounded-md cursor-pointer hover:bg-blue-100 transition-colors mb-2";
                 
                 groupHeader.onclick = () => {
-                    if (searchQuery) return; // 搜尋狀態下不允許收合
+                    if (searchQuery) return; 
                     const wasExpanded = expandedClasses.has(className);
                     expandedClasses.clear();
                     if (!wasExpanded) expandedClasses.add(className);
@@ -918,7 +904,6 @@
                     const listContainer = document.createElement('div');
                     listContainer.className = "space-y-2 mb-4 pl-2";
                     
-                    // 依據學號由小到大排序
                     classStudents.sort((a, b) => {
                         const numA = parseInt(a.number, 10) || 0;
                         const numB = parseInt(b.number, 10) || 0;
@@ -930,16 +915,12 @@
                         const div = document.createElement('div');
                         const isSelected = selectedStudentForClickId === student.id;
                         
-                        // 根據是否被選取，給予不同的樣式
                         div.className = `flex items-center p-2 bg-white border rounded-md cursor-pointer hover:border-blue-400 shadow-sm transition-all ${
                             isSelected ? 'border-blue-500 ring-2 ring-blue-300 bg-blue-50 transform scale-[1.02]' : 'border-gray-200'
                         }`;
                         
-                        // 保留拖曳功能作為備用
                         div.draggable = true;
                         div.ondragstart = (e) => handleDragStart(e, student.id, 'list');
-                        
-                        // 點擊事件：觸發點擊分配模式
                         div.onclick = () => window.handleStudentClick(student.id);
                         
                         const numText = student.number ? `<span class="text-blue-600 font-bold mr-1">(${student.number})</span>` : '';
@@ -973,7 +954,6 @@
                     const student = students.find(s => s.id === seat.studentId);
                     const div = document.createElement('div');
                     
-                    // 如果有選取學生，座位加上提示游標與 hover 效果
                     const placeModeClass = selectedStudentForClickId ? 'seat-place-mode' : '';
                     
                     div.className = `seat-box relative w-24 h-28 sm:w-28 sm:h-32 rounded-lg border-2 flex flex-col items-center justify-center p-2 transition-all ${placeModeClass} ${
@@ -985,18 +965,14 @@
                         div.style.marginRight = `${gap}px`;
                     }
                     
-                    // 拖曳事件
                     div.ondragover = handleDragOver;
                     div.ondrop = (e) => handleDropOnSeat(e, seat.id);
-                    
-                    // 點擊事件：用於點擊分配模式
                     div.onclick = () => window.handleSeatClick(seat.id);
 
                     if (student) {
                         const innerDiv = document.createElement('div');
-                        // 如果在點擊模式，不顯示 grab 游標
                         innerDiv.className = `w-full h-full flex flex-col items-center justify-center ${selectedStudentForClickId ? 'pointer-events-none' : 'cursor-grab active:cursor-grabbing'}`;
-                        innerDiv.draggable = !selectedStudentForClickId; // 點擊模式下暫停拖曳避免衝突
+                        innerDiv.draggable = !selectedStudentForClickId; 
                         innerDiv.ondragstart = (e) => handleDragStart(e, student.id, seat.id);
                         
                         const numText = student.number ? `<span class="text-blue-600 font-bold mr-1">(${student.number})</span>` : '';
@@ -1018,7 +994,6 @@
 
         // ==================== 拖曳邏輯 ====================
         function handleDragStart(e, studentId, source) {
-            // 如果正在點擊分配模式，不允許拖曳
             if (selectedStudentForClickId) {
                 e.preventDefault();
                 return;
@@ -1084,28 +1059,43 @@
         window.handleDragOver = handleDragOver;
         window.handleDropOnSidebar = handleDropOnSidebar;
 
-        // ==================== 列印縮放邏輯 ====================
+        // ==================== 列印縮放邏輯 (已修正) ====================
         function applyPrintScale() {
             const wrapper = document.getElementById('print-wrapper');
             wrapper.style.transform = 'none';
+            wrapper.style.marginTop = '0px';
             void wrapper.offsetWidth; 
             
-            const width = wrapper.offsetWidth;
-            const height = wrapper.offsetHeight;
+            // 使用 scrollWidth 避免被隱藏或裁切時計算為 0
+            const width = wrapper.scrollWidth;
+            const height = wrapper.scrollHeight;
             
-            const availableWidth = 1080; 
-            const availableHeight = 750; 
+            // A4 橫向安全列印範圍 (大約值)
+            const availableWidth = 1050; 
+            const availableHeight = 720; 
             
-            const scaleX = availableWidth / width;
-            const scaleY = availableHeight / height;
-            const scale = Math.min(scaleX, scaleY); 
+            let scale = 1;
+            if (width > 0 && height > 0) {
+                const scaleX = availableWidth / width;
+                const scaleY = availableHeight / height;
+                scale = Math.min(scaleX, scaleY, 1); // 只縮小，不放大
+            }
             
             wrapper.style.transform = `scale(${scale})`;
-            wrapper.style.transformOrigin = 'center center';
+            wrapper.style.transformOrigin = 'top center'; // 改為從頂部置中縮放，避免被切掉
+            
+            // 如果縮放後高度較小，稍微往下推一點達到垂直置中效果
+            const scaledHeight = height * scale;
+            if (scaledHeight < availableHeight) {
+                const marginTop = (availableHeight - scaledHeight) / 2;
+                wrapper.style.marginTop = `${marginTop}px`;
+            }
         }
 
         function removePrintScale() {
-            document.getElementById('print-wrapper').style.transform = 'none';
+            const wrapper = document.getElementById('print-wrapper');
+            wrapper.style.transform = 'none';
+            wrapper.style.marginTop = '0px';
         }
 
         window.addEventListener('beforeprint', applyPrintScale);
